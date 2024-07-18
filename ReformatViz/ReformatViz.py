@@ -4,10 +4,35 @@ from copy import deepcopy
 
 import vtk, qt
 import numpy as np
+import math
 
 import slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
+
+
+eps=np.finfo(np.float64).resolution
+
+def rotate2Z(v):
+    v=np.array(v)
+    tn=v@v # tiny bit faster that np.dot(v,v)
+    if tn<eps:
+        return np.eye(3,dtype=np.float64)
+
+    vn=v/math.sqrt(tn)
+    R1=np.array([ -vn[1], vn[0], 0])
+    tn=R1@R1
+
+    if tn<eps:
+        return np.eye(3, dtype=np.float64)
+
+    R1 = (1.0/math.sqrt(tn)) * np.array(R1, dtype=np.float64)
+    tn = math.sqrt(1-vn[2]*vn[2])
+
+    R0 = [ vn[0]*vn[2]/tn, vn[1]*vn[2]/tn, -tn ]
+
+    return np.array([R0,R1,vn],dtype=np.float64)
+
 
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
@@ -70,12 +95,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
         # slices visibility
-        self.ui.axial_visibility.stateChanged.connect(self.set_axial_slice_visibility)    
+        self.ui.axialVisibility.stateChanged.connect(self.set_axial_slice_visibility)    
         
         # Slider: Rotate around axis
-        self.ui.rotateXSlider.valueChanged.connect(self.rotateXSlider)
-        self.ui.rotateYSlider.valueChanged.connect(self.rotateYSlider)
-        # self.ui.rotateZSlider.valueChanged.connect(self.rotateZSlider)
+        self.ui.rotateAxisSlider.valueChanged.connect(self.rotateAxisSlider)
+        #self.ui.rotateYSlider.valueChanged.connect(self.rotateZSlider)
+        #self.ui.rotateZSlider.valueChanged.connect(self.rotateZSlider)
+        self.ui.centerCamera.clicked.connect(self.centerCamera)
 
         self.ui.ZoomSlider.valueChanged.connect(self.zoomAxial)
 
@@ -89,6 +115,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.selected_detection = None
         self.detections = None
         
+        self.aneAxis=np.array([0.0,0.0,1.0])
+
         self.org_zoom = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed').GetFieldOfView()
 
         self.last_x, self.last_y, self.last_z = 0, 0, 0
@@ -115,14 +143,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         for idx in self.detections:
             # Confidence score
-            confidence = str(round(self.detections[idx]['confidence']*100, 3))
-            itm = qt.QTableWidgetItem(confidence)
+            if 'confidence' in self.detections[idx]:
+                confidence = round(self.detections[idx]['confidence']*100, 3)
+            else:
+                confidence=100
+            itm = qt.QTableWidgetItem(str(confidence))
             itm.setTextAlignment(4)
             self.tableWidget.setItem(int(idx), 0,  itm)
 
             # Size (mm)
-            size = str(round(self.detections[idx]['radius']*2, 3))
-            itm = qt.QTableWidgetItem(size)
+            size = round(self.detections[idx]['radius']*2, 3)
+            itm = qt.QTableWidgetItem(str(size))
             itm.setTextAlignment(4)
             self.tableWidget.setItem(int(idx), 1,  itm)
 
@@ -248,11 +279,42 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.last_z = value
         sliceToRas.DeepCopy(transform.GetMatrix())
         node.UpdateMatrices()
+
+    def rotateAxisSlider(self, value):
+        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        if node is not None:
+            angle=value/180*np.pi
+            aneNormal = self.aneRz.T@np.array([math.cos(angle),math.sin(angle),0])
+            #aneTrans = np.cross(self.aneAxis,aneNormal)
+            #node.SetSliceToRASByNTP(*aneNormal,*aneTrans,*self.aneOrigin,0)
+            self.reformatLogic.SetSliceNormal(node, aneNormal)
+            m=node.GetSliceToRAS()
+            sliceX=np.array(m.MultiplyDoublePoint([1,0,0,0]))[:3]
+            sliceY=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
+            ca=sliceY@self.aneAxis
+            sa=sliceX@self.aneAxis
+            a=math.atan2(-sa,ca)/np.pi*180
+            self.reformatLogic.RotateSlice(node,2,a)
+            self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
+            
+        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen')
+        if node is not None:
+            self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
+        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow')
+        if node is not None:
+            self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
+        #sliceToRas = node.GetSliceToRAS()
+        #transform=vtk.vtkTransform()
+        #transform.SetMatrix()
+        #transform.RotateZ(self.last_z-value)
+        #self.last_z = value
+        #sliceToRas.DeepCopy(transform.GetMatrix())
+        # node.UpdateMatrices()
     
     def set_axial_slice_visibility(self):
         layoutManager = slicer.app.layoutManager()
         controller = layoutManager.sliceWidget("Red").sliceController()
-        controller.setSliceVisible(self.ui.axial_visibility.checked)
+        controller.setSliceVisible(self.ui.axialVisibility.checked)
 
     def load_files(self):
         # save before loading
@@ -301,21 +363,28 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
 
         # sort by confidence score
-        self.detections = {k: data[k] for k in sorted(data, key=lambda x:data[x]['confidence'], reverse=True) if data[k]['confidence']>=0.5}
+        self.detections = {k: data[k] for k in range(len(data))}
 
+        if len(self.detections) > 0 and 'confidence' in self.detections[next(iter(self.detections))]: # next(iter) to get first key
+            self.detections = {k: data[k] for k in sorted(data, key=lambda x:data[x]['confidence'], reverse=True) if data[k]['confidence']>=0.5}
+    
     def create_spheres(self):
-        if self.detections is None: return
+        if self.detections is None or len(self.detections) == 0: return
         # self.appender_spheres = vtk.vtkAppendPolyData() if self.appender_spheres is None else self.appender_spheres
         self.appender_lines = vtk.vtkAppendPolyData() if self.appender_lines is None else self.appender_lines
         self.spheres = []
         self.lines = []
         # self.lines = [slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsLineNode") for i in self.detections]
 
-        # Confidence Scores
-        ConfidenceNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        ConfidenceNode.SetName("Confidences")
-#        ConfidenceNode.GetDisplayNode().SetColor(0, 1, 0)
-        ConfidenceNode.GetDisplayNode().SetVisibility(False) # self.ui.confidenceVisibility.checked
+        first_key=next(iter(self.detections))
+        if 'confidence' in self.detections[first_key]:
+            # Confidence Scores
+            ConfidenceNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+            ConfidenceNode.SetName("Confidences")
+    #        ConfidenceNode.GetDisplayNode().SetColor(0, 1, 0)
+            ConfidenceNode.GetDisplayNode().SetVisibility(False) # self.ui.confidenceVisibility.checked
+        else:
+            ConfidenceNode=None
 
         # Ostium Point
         OstiumNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
@@ -331,8 +400,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for idx in self.detections:
             # Sphere
             sphere = vtk.vtkSphereSource()
-            sphere.SetCenter(self.detections[str(idx)]['center'])
-            sphere.SetRadius(self.detections[str(idx)]['radius'])
+            sphere.SetCenter(self.detections[idx]['center'])
+            sphere.SetRadius(self.detections[idx]['radius'])
             sphere.SetPhiResolution(30)
             sphere.SetThetaResolution(30)
             sphere.Update()
@@ -351,8 +420,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             # Line
             line = vtk.vtkLineSource()
-            line.SetPoint1(self.detections[str(idx)]['P1'])
-            line.SetPoint2(self.detections[str(idx)]['P2'])
+            line.SetPoint1(self.detections[idx]['P1'])
+            line.SetPoint2(self.detections[idx]['P2'])
             line.SetResolution(30)
             self.appender_lines.AddInputConnection(line.GetOutputPort())
             self.appender_lines.Update()
@@ -360,17 +429,18 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # lineNode.SetName("Size")
             # self.lines[int(idx)].GetMeasurement('length').SetEnabled(False)
 
-            # Confidence scores
-            n = ConfidenceNode.AddControlPoint(self.detections[str(idx)]['center'])
-            ConfidenceNode.SetNthControlPointLabel(n, str(round(self.detections[str(idx)]['confidence'] * 100, 3))+" %")
-            ConfidenceNode.SetLocked(1)
+            if ConfidenceNode is not None:
+               # Confidence scores
+                n = ConfidenceNode.AddControlPoint(self.detections[idx]['center'])
+                ConfidenceNode.SetNthControlPointLabel(n, str(round(self.detections[idx]['confidence'] * 100, 3))+" %")
+                ConfidenceNode.SetLocked(1)
 
             # Confidence scores
-            n = OstiumNode.AddControlPoint(self.detections[str(idx)]['P1'])
+            n = OstiumNode.AddControlPoint(self.detections[idx]['P1'])
             OstiumNode.SetLocked(1)
 
             # Confidence scores
-            n = DomeNode.AddControlPoint(self.detections[str(idx)]['P2'])
+            n = DomeNode.AddControlPoint(self.detections[idx]['P2'])
             DomeNode.SetLocked(1)
 
         
@@ -503,31 +573,46 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #         #lineNode.GetMeasurement('length').SetEnabled(False)
     
     def prepare_slices (self):
-        if self.selected_detection is None and self.detecitons is None: return
+        if self.selected_detection is None and self.detections is None: return
         
-        A = np.array(self.detections[str(self.selected_detection)]["P1"])
-        B = np.array(self.detections[str(self.selected_detection)]["P2"])
+        A = np.array(self.detections[self.selected_detection]["P1"])
+        B = np.array(self.detections[self.selected_detection]["P2"])
 
-        V = B - A
-        N = np.cross(V, np.array([0, 0, 1]))
-        newNormal = N / np.linalg.norm(N)
-        reformatLogic = slicer.modules.reformat.logic()
+        self.aneAxis = B - A
+        n=np.linalg.norm(self.aneAxis)
+        if n > 1e-8:
+            self.aneAxis /= n
+        else:
+            self.aneAxis=np.array([0.0,0.0,1.0])
+        self.aneRz=rotate2Z(self.aneAxis)
+        self.aneOrigin=(A+B)/2
+        self.reformatLogic = slicer.modules.reformat.logic()
 
-        reformatLogic.SetSliceNormal(slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed'), newNormal)
-        reformatLogic.SetSliceOrigin(slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed'), (A+B)/2)
+        self.ui.rotateAxisSlider.value=0
 
-        # reformatLogic.SetSliceNormal(slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen'), newNormal)
-        reformatLogic.SetSliceOrigin(slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen'), (A+B)/2)
-        
-        # reformatLogic.SetSliceNormal(slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow'), newNormal)
-        reformatLogic.SetSliceOrigin(slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow'), (A+B)/2)
 
         self.ui.ZoomSlider.value = 0.94
+        self.centerCamera()
 
-
+    def centerCamera(self):
         # camera focal point 
         camera = slicer.app.layoutManager().threeDWidget(0).threeDView().displayableManagerByClassName('vtkMRMLCameraDisplayableManager').GetCameraWidget().GetCameraNode()
-        camera.SetFocalPoint(((A+B)/2).tolist())
+
+        # angle=self.ui.rotateAxisSlider.value/180*np.pi
+        # aneNormal = self.aneRz.T@np.array([math.cos(angle),math.sin(angle),0])
+        m=slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed').GetSliceToRAS()
+        upaxis=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
+        normal=np.array(m.MultiplyDoublePoint([0,0,1,0]))[:3]
+        origin=np.array(m.MultiplyDoublePoint([0,0,0,1]))[:3]
+        # get camera distance
+        p=np.array(camera.GetPosition())
+        f=np.array(camera.GetFocalPoint())
+        d=np.linalg.norm(f-p)
+        new_p=origin-d*normal
+
+        camera.SetFocalPoint(origin.tolist())
+        camera.SetPosition(new_p.tolist())
+        camera.SetViewUp(upaxis.tolist())
 
 
 

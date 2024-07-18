@@ -227,34 +227,36 @@
              <property name="verticalSpacing">
               <number>2</number>
              </property>
-             <item row="0" column="3">
+
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_14">
+               <property name="text">
+                <string>Visibility</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QCheckBox" name="axialVisibility">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="2">
+              <widget class="QPushButton" name="centerCamera">
+               <property name="text">
+                <string>Center view</string>
+               </property>
+              </widget>
+            </item>
+             <item row="1" column="0">
               <widget class="QLabel" name="label_11">
                <property name="text">
                 <string>    Zoom    </string>
                </property>
               </widget>
              </item>
-             <item row="2" column="3" colspan="2">
-              <widget class="ctkSliderWidget" name="rotateYSlider">
-               <property name="singleStep">
-                <double>1.000000000000000</double>
-               </property>
-               <property name="pageStep">
-                <double>1.000000000000000</double>
-               </property>
-               <property name="maximum">
-                <double>180.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="label_14">
-               <property name="text">
-                <string>Visibility   </string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="4">
+             <item row="1" column="1" colspan="2">
               <widget class="ctkSliderWidget" name="ZoomSlider">
                <property name="singleStep">
                 <double>0.010000000000000</double>
@@ -267,44 +269,27 @@
                </property>
               </widget>
              </item>
-             <item row="1" column="3" colspan="2">
-              <widget class="ctkSliderWidget" name="rotateXSlider">
+
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_12">
+               <property name="text">
+                <string>Angle</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1"  colspan="2">
+              <widget class="ctkSliderWidget" name="rotateAxisSlider">
                <property name="singleStep">
                 <double>1.000000000000000</double>
                </property>
                <property name="pageStep">
-                <double>1.000000000000000</double>
+                <double>10.000000000000000</double>
+               </property>
+               <property name="minimum">
+                <double>-180.000000000000000</double>
                </property>
                <property name="maximum">
                 <double>180.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="2">
-              <widget class="QLabel" name="label_12">
-               <property name="text">
-                <string>Y   </string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="2">
-              <widget class="QLabel" name="label_9">
-               <property name="text">
-                <string>X</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0" rowspan="2">
-              <widget class="QLabel" name="label_10">
-               <property name="text">
-                <string>Rotation</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="2">
-              <widget class="QCheckBox" name="axial_visibility">
-               <property name="text">
-                <string/>
                </property>
               </widget>
              </item>
