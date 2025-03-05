@@ -99,11 +99,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # Slider: Rotate around axis
         self.ui.rotateAxisSlider.valueChanged.connect(self.rotateAxisSlider)
-        #self.ui.rotateYSlider.valueChanged.connect(self.rotateZSlider)
-        #self.ui.rotateZSlider.valueChanged.connect(self.rotateZSlider)
         self.ui.centerCamera.clicked.connect(self.centerCamera)
 
-        self.ui.ZoomSlider.valueChanged.connect(self.zoomAxial)
 
         # self.ui.LinecheckBox.stateChanged.connect(self.set_size_visibility)
 
@@ -116,8 +113,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.detections = None
         
         self.aneAxis=np.array([0.0,0.0,1.0])
-
-        self.org_zoom = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed').GetFieldOfView()
 
         self.last_x, self.last_y, self.last_z = 0, 0, 0
 
@@ -141,18 +136,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.tableWidget.setRowCount(len(self.detections))
 
-        for idx in self.detections:
+        for idx,d in enumerate(self.detections):
             # Confidence score
-            if 'confidence' in self.detections[idx]:
-                confidence = round(self.detections[idx]['confidence']*100, 3)
-            else:
-                confidence=100
+            confidence = round(d['confidence']*100, 3)
             itm = qt.QTableWidgetItem(str(confidence))
             itm.setTextAlignment(4)
             self.tableWidget.setItem(int(idx), 0,  itm)
 
             # Size (mm)
-            size = round(self.detections[idx]['radius']*2, 3)
+            size = round(d['radius']*2, 3)
             itm = qt.QTableWidgetItem(str(size))
             itm.setTextAlignment(4)
             self.tableWidget.setItem(int(idx), 1,  itm)
@@ -244,11 +236,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             scalarOpacity.GetNodeValue(1, p)
             p[1] = self.ui.volumeOpacity.value
             scalarOpacity.SetNodeValue(1, p)
-
-    def zoomAxial(self, value):
-        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
-        node.SetFieldOfView(self.org_zoom[0]*(1-value), self.org_zoom[1]*(1-value), self.org_zoom[2]*(1-value))
-        node.UpdateMatrices()
 
     def rotateXSlider(self, value):
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
@@ -358,15 +345,38 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
             with open(file_path, 'r') as f:
                 data = json.load(f)
+            if not data: 
+                raise Exception()
+            first_item=data[next(iter(data))]
+            if not 'P1' in first_item or not 'P2' in first_item:
+                raise Exception()
         except:
             slicer.util.errorDisplay('Please choose the detections file with the right format.')
             return
 
         # sort by confidence score
-        self.detections = {k: data[k] for k in range(len(data))}
+        self.detections=[d for d in data.values()]
 
-        if len(self.detections) > 0 and 'confidence' in self.detections[next(iter(self.detections))]: # next(iter) to get first key
-            self.detections = {k: data[k] for k in sorted(data, key=lambda x:data[x]['confidence'], reverse=True) if data[k]['confidence']>=0.5}
+        if 'confidence' in self.detections[0]:
+            self.detections = sorted([d for d in self.detections if d['confidence']>=0.5], key=lambda x:x['confidence'], reverse=True)
+        else:
+            for d in self.detections:
+                d['confidence'] = 1
+
+        if not 'center' in self.detections[0]:
+            for d in self.detections:
+                P1=np.array(d['P1'])
+                P2=np.array(d['P2'])
+                C=(P1+P2)/2
+                d['center'] = C.tolist()
+
+        if not 'radius' in self.detections[0]:
+            for d in self.detections:
+                P1=np.array(d['P1'])
+                P2=np.array(d['P2'])
+                R=np.linalg.norm(P1-P2)
+                d['radius'] = R
+
     
     def create_spheres(self):
         if self.detections is None or len(self.detections) == 0: return
@@ -376,8 +386,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.lines = []
         # self.lines = [slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsLineNode") for i in self.detections]
 
-        first_key=next(iter(self.detections))
-        if 'confidence' in self.detections[first_key]:
+        if 'confidence' in self.detections[0]:
             # Confidence Scores
             ConfidenceNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
             ConfidenceNode.SetName("Confidences")
@@ -397,11 +406,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 #        DomeNode.GetDisplayNode().SetColor(0, 1, 0)
         DomeNode.GetDisplayNode().SetVisibility(False)
 
-        for idx in self.detections:
+        for idx,d in enumerate(self.detections):
             # Sphere
             sphere = vtk.vtkSphereSource()
-            sphere.SetCenter(self.detections[idx]['center'])
-            sphere.SetRadius(self.detections[idx]['radius'])
+            sphere.SetCenter(d['center'])
+            sphere.SetRadius(d['radius'])
             sphere.SetPhiResolution(30)
             sphere.SetThetaResolution(30)
             sphere.Update()
@@ -420,8 +429,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             # Line
             line = vtk.vtkLineSource()
-            line.SetPoint1(self.detections[idx]['P1'])
-            line.SetPoint2(self.detections[idx]['P2'])
+            line.SetPoint1(d['P1'])
+            line.SetPoint2(d['P2'])
             line.SetResolution(30)
             self.appender_lines.AddInputConnection(line.GetOutputPort())
             self.appender_lines.Update()
@@ -431,16 +440,16 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             if ConfidenceNode is not None:
                # Confidence scores
-                n = ConfidenceNode.AddControlPoint(self.detections[idx]['center'])
-                ConfidenceNode.SetNthControlPointLabel(n, str(round(self.detections[idx]['confidence'] * 100, 3))+" %")
+                n = ConfidenceNode.AddControlPoint(d['center'])
+                ConfidenceNode.SetNthControlPointLabel(n, str(round(d['confidence'] * 100, 3))+" %")
                 ConfidenceNode.SetLocked(1)
 
             # Confidence scores
-            n = OstiumNode.AddControlPoint(self.detections[idx]['P1'])
+            n = OstiumNode.AddControlPoint(d['P1'])
             OstiumNode.SetLocked(1)
 
             # Confidence scores
-            n = DomeNode.AddControlPoint(self.detections[idx]['P2'])
+            n = DomeNode.AddControlPoint(d['P2'])
             DomeNode.SetLocked(1)
 
         
@@ -591,7 +600,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.rotateAxisSlider.value=0
 
 
-        self.ui.ZoomSlider.value = 0.94
         self.centerCamera()
 
     def centerCamera(self):
