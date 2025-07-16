@@ -109,8 +109,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.appender_spheres = None
         self.appender_lines = None
         self.patient_path = None
-        self.selected_detection = None
-        self.detections = None
+        self.selected_detection = -1
+        self.detections = []
         
         self.aneAxis=np.array([0.0,0.0,1.0])
 
@@ -130,10 +130,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CollapsibleButton.setLayout(self.layout_2)
 
     def displayTable(self):
-        if self.detections is None: 
-            self.tableWidget.setRowCount(0)
-            return
-
         self.tableWidget.setRowCount(len(self.detections))
 
         for idx,d in enumerate(self.detections):
@@ -160,6 +156,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             lay_out.setContentsMargins(0,0,0,0)
             cell_widget.setLayout(lay_out)
             self.tableWidget.setCellWidget(int(idx), 2, cell_widget)
+            self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
             # cbox.clicked.connect(lambda checked, id=int(sphere_id): self.onStateChanged(checked, id))
 
     def onRowSelected(self, item):
@@ -270,6 +267,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def rotateAxisSlider(self, value):
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
         if node is not None:
+            if self.detections and self.selected_detection >= 0:
+                self.detections[self.selected_detection]['viewAngle']=value
             angle=value/180*np.pi
             aneNormal = self.aneRz.T@np.array([math.cos(angle),math.sin(angle),0])
             #aneTrans = np.cross(self.aneAxis,aneNormal)
@@ -357,26 +356,27 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # sort by confidence score
         self.detections=[d for d in data.values()]
 
-        if 'confidence' in self.detections[0]:
-            #self.detections = sorted([d for d in self.detections if d['confidence']>=0.5], key=lambda x:x['confidence'], reverse=True)
-            self.detections = sorted(self.detections, key=lambda x:x['confidence'], reverse=True)
-        else:
-            for d in self.detections:
+        # add missing info
+        for d in self.detections:
+            if not 'confidence' in d:
                 d['confidence'] = 1
-
-        if not 'center' in self.detections[0]:
-            for d in self.detections:
+            if not 'center' in d:
                 P1=np.array(d['P1'])
                 P2=np.array(d['P2'])
                 C=(P1+P2)/2
                 d['center'] = C.tolist()
-
-        if not 'radius' in self.detections[0]:
-            for d in self.detections:
+            if not 'radius' in d:
                 P1=np.array(d['P1'])
                 P2=np.array(d['P2'])
                 R=np.linalg.norm(P1-P2)
-                d['radius'] = R
+                d['radius'] = R 
+            if not 'viewAngle' in d:
+                d['viewAngle'] = 0
+
+
+        #self.detections = sorted([d for d in self.detections if d['confidence']>=0.5], key=lambda x:x['confidence'], reverse=True)
+        self.detections = sorted(self.detections, key=lambda x:x['confidence'], reverse=True)
+        
 
     
     def create_spheres(self):
@@ -468,7 +468,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.set_spheres_visibility()
         
     def set_spheres_visibility(self):
-        if self.detections is None: return
         for i in range(len(self.detections)):
             sphere_name = f'Sphere_{i}'
             value = self.ui.SpheresVisibility.checked if i == self.selected_detection else False
@@ -477,7 +476,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 node.GetDisplayNode().SetVisibility(value)
 
     def set_spheres_color(self, color=None):
-        if self.detections is None: return
         color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.SpheresColorPicker.color.red()/255, self.ui.SpheresColorPicker.color.green()/255, self.ui.SpheresColorPicker.color.blue()/255)
         for i in range(len(self.detections)):
             sphere_name = f'Sphere_{i}'
@@ -486,7 +484,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 node.GetDisplayNode().SetColor(color)
 
     def set_spheres_opacity(self):
-        if self.detections is None: return
         for i in range(len(self.detections)):
             sphere_name = f'Sphere_{i}'
             nodes = slicer.mrmlScene.GetNodesByName(sphere_name)
@@ -512,7 +509,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_confidence_visibility(self):
         nodes = slicer.mrmlScene.GetNodesByName("Confidences")
-        #if self.selected_detection is None: return
         for node in nodes:
             for i in range(node.GetNumberOfControlPoints()):
                 if i == self.selected_detection:
@@ -536,7 +532,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_markups_visibility(self):
         nodes = slicer.mrmlScene.GetNodesByName("Ostium")
-        #if self.selected_detection is None: return
         for node in nodes:
             for i in range(node.GetNumberOfControlPoints()):
                 if i == self.selected_detection:
@@ -546,7 +541,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             node.GetDisplayNode().SetVisibility(self.ui.MarkupsVisibility.checked)
 
         nodes = slicer.mrmlScene.GetNodesByName("Dome")
-        #if self.selected_detection is None: return
         for node in nodes:
             for i in range(node.GetNumberOfControlPoints()):
                 if i == self.selected_detection:
@@ -584,10 +578,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #         #lineNode.GetMeasurement('length').SetEnabled(False)
     
     def prepare_slices (self):
-        if self.selected_detection is None and self.detections is None: return
+        if not self.detections or self.selected_detection < 0: 
+            return
         
-        A = np.array(self.detections[self.selected_detection]["P1"])
-        B = np.array(self.detections[self.selected_detection]["P2"])
+        d=self.detections[self.selected_detection]
+
+        A = np.array(d["P1"])
+        B = np.array(d["P2"])
 
         self.aneAxis = B - A
         n=np.linalg.norm(self.aneAxis)
@@ -599,8 +596,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.aneOrigin=(A+B)/2
         self.reformatLogic = slicer.modules.reformat.logic()
 
-        self.ui.rotateAxisSlider.value=0
-
+        self.ui.rotateAxisSlider.value=d['viewAngle']
+        self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
 
         self.centerCamera()
 
