@@ -40,8 +40,8 @@ class ReformatViz(ScriptedLoadableModule):
         self.parent.title = "Reformat Aneurysm"  # TODO: make this more human readable by adding spaces
         self.parent.categories = ["Aneurysms"]
         self.parent.dependencies = []
-        self.parent.contributors = ["Youssef Assis (Loria lab.)"]
-        self.parent.acknowledgementText = "This module was developed by Youssef Assis"
+        self.parent.contributors = ["Youssef Assis and Erwan Kerrien (Loria lab.)"]
+        self.parent.acknowledgementText = "This module was developed by Youssef Assis, and is maintained by Erwan Kerrien"
 
 class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def __init__(self, parent=None):
@@ -358,7 +358,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.detections=[d for d in data.values()]
 
         if 'confidence' in self.detections[0]:
-            self.detections = sorted([d for d in self.detections if d['confidence']>=0.5], key=lambda x:x['confidence'], reverse=True)
+            #self.detections = sorted([d for d in self.detections if d['confidence']>=0.5], key=lambda x:x['confidence'], reverse=True)
+            self.detections = sorted(self.detections, key=lambda x:x['confidence'], reverse=True)
         else:
             for d in self.detections:
                 d['confidence'] = 1
