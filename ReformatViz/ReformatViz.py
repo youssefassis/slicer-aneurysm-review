@@ -417,7 +417,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             sphere.Update()
 
             # Assign a unique name to each sphere
-            self.create_model(sphere, name=f'Sphere_{idx}')
+            d['sphere'] = self.create_model(sphere, name=f'Sphere_{idx}')
 
             # node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode', sphere_name)
             # node.SetAndObservePolyData(sphere.GetOutput())
@@ -500,6 +500,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         node.GetDisplayNode().SetVisibility2D(True)
         node.GetDisplayNode().SetSliceIntersectionThickness(2)
         if "Sphere" in name: node.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
+        return node
 
     def set_confidence_color(self, color=None):
         r, g, b = self.ui.ConfidenceColorPicker.color.red()/255, self.ui.ConfidenceColorPicker.color.green()/255, self.ui.ConfidenceColorPicker.color.blue()/255
