@@ -5,6 +5,7 @@ from copy import deepcopy
 import vtk, qt
 import numpy as np
 import math
+import functools
 
 import slicer
 from slicer.ScriptedLoadableModule import *
@@ -70,7 +71,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Buttons
         #### Volume
-        self.ui.load_volume_button.connect('clicked(bool)', self.load_files) # load volume
+        self.ui.load_volume_button.clicked.connect(self.load_files) # load volume
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
         self.ui.volumeOpacity.valueChanged.connect(self.onVolumeOpacityChanged)
         self.ui.volumeThreshold.valueChanged.connect(self.onVolumeThresholdChanged)
@@ -91,6 +92,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.MarkupsVisibility.stateChanged.connect(self.set_markups_visibility)
 
 
+        self.ui.saveButton.clicked.connect(self.save)
         #self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
 
 
@@ -124,6 +126,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.horizontalHeader().setStretchLastSection(True)
         self.tableWidget.resizeColumnsToContents()
         self.tableWidget.setSelectionBehavior(self.tableWidget.SelectRows)
+        self.tableWidget.setSelectionMode(self.tableWidget.SingleSelection)
 
         self.layout_2 = qt.QGridLayout()
         self.layout_2.addWidget(self.tableWidget)
@@ -148,7 +151,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.tableWidget.clicked.connect(self.onRowSelected)
 
             cbox = qt.QCheckBox()
-            # cbox.checked = int(annot['truth'])
+            cbox.checked = int(d['aneurysm'])
             cell_widget = qt.QWidget()
             lay_out = qt.QHBoxLayout(cell_widget)
             lay_out.addWidget(cbox)
@@ -157,7 +160,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             cell_widget.setLayout(lay_out)
             self.tableWidget.setCellWidget(int(idx), 2, cell_widget)
             self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
-            # cbox.clicked.connect(lambda checked, id=int(sphere_id): self.onStateChanged(checked, id))
+            cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
+
+    def confirmAneurysm(self, state, det):
+        det['aneurysm']=bool(state)
 
     def onRowSelected(self, item):
         self.selected_detection  = item.row() if not isinstance(item, int) else item
@@ -304,8 +310,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def load_files(self):
         # save before loading
-        dialog = qt.QFileDialog()
-        dir_path = str(dialog.getExistingDirectory())
+        dir_path = qt.QFileDialog().getExistingDirectory()
         if dir_path:
             self.patient_path = dir_path
             # load the first volume file
@@ -372,6 +377,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 d['radius'] = R 
             if not 'viewAngle' in d:
                 d['viewAngle'] = 0
+            if not 'aneurysm' in d:
+                d['aneurysm'] = False
 
 
         #self.detections = sorted([d for d in self.detections if d['confidence']>=0.5], key=lambda x:x['confidence'], reverse=True)
@@ -417,7 +424,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             sphere.Update()
 
             # Assign a unique name to each sphere
-            d['sphere'] = self.create_model(sphere, name=f'Sphere_{idx}')
+            self.create_model(sphere, name=f'Sphere_{idx}')
 
             # node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode', sphere_name)
             # node.SetAndObservePolyData(sphere.GetOutput())
@@ -621,9 +628,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         camera.SetPosition(new_p.tolist())
         camera.SetViewUp(upaxis.tolist())
 
-
-
-
     def remove_nodes_by_type(self, node_type_name):
         volumeNodes = slicer.util.getNodesByClass(node_type_name)
         for node in volumeNodes:
@@ -657,6 +661,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         nodes = slicer.mrmlScene.GetNodesByName(name)
         for node in nodes:
             slicer.mrmlScene.RemoveNode(node)
+
+    def save(self):
+        dialog = qt.QFileDialog()
+        filename = str(dialog.getSaveFileName(None,"Save detections","","JSON files (*.json)"))
+        if filename:
+            with open(filename, 'w') as f:
+                json.dump({str(i): x for i,x in enumerate(self.detections)},f, indent=2)
 
     ##############################################################################################################   
     def cleanup(self):
