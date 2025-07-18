@@ -2,10 +2,13 @@ import logging
 import os, json
 from copy import deepcopy
 
-import vtk, qt
 import numpy as np
 import math
 import functools
+
+import vtk, qt
+from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
+
 
 import slicer
 from slicer.ScriptedLoadableModule import *
@@ -33,6 +36,17 @@ def rotate2Z(v):
     R0 = [ vn[0]*vn[2]/tn, vn[1]*vn[2]/tn, -tn ]
 
     return np.array([R0,R1,vn],dtype=np.float64)
+
+def makeScalarOpacity():
+    scalarOpacity = vtkPiecewiseFunction()
+    scalarOpacity.AllowDuplicateScalarsOn()
+    scalarOpacity.RemoveAllPoints()
+    scalarOpacity.AddPoint(0.0,0.0)
+    scalarOpacity.AddPoint(1.0, 0.0)
+    scalarOpacity.AddPoint(2.0,1.0)
+    scalarOpacity.AddPoint(3.0,1.0)
+    scalarOpacity.AddPoint(4.0,1.0)
+    return scalarOpacity
 
 
 class ReformatViz(ScriptedLoadableModule):
@@ -73,6 +87,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #### Volume
         self.ui.load_volume_button.clicked.connect(self.load_files) # load volume
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
+        self.ui.vol_translucent.stateChanged.connect(self.set_volume_translucent)
         self.ui.volumeOpacity.valueChanged.connect(self.onVolumeOpacityChanged)
         self.ui.volumeThreshold.valueChanged.connect(self.onVolumeThresholdChanged)
 
@@ -93,7 +108,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
         self.ui.saveButton.clicked.connect(self.save)
-        #self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
+        self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
 
 
         # slices visibility
@@ -113,7 +128,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.patient_path = None
         self.selected_detection = -1
         self.detections = []
-        
+        self.volNode=None
+        self.volProp=None
+        self.scalarOpacity=makeScalarOpacity()
+        self.margin=20
+
         self.aneAxis=np.array([0.0,0.0,1.0])
 
         self.last_x, self.last_y, self.last_z = 0, 0, 0
@@ -162,6 +181,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
             cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
 
+    
     def confirmAneurysm(self, state, det):
         det['aneurysm']=bool(state)
 
@@ -179,35 +199,36 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_volume_color(self, color=None):
         color = [color.red()/255, color.green()/255, color.blue()/255] if color is not None else [self.ui.volumeColor.color.red()/255, self.ui.volumeColor.color.green()/255, self.ui.volumeColor.color.blue()/255] 
-        volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-        if volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
+        if self.volNode:
+            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
             rangeCT = [0] * 2
             displayNode.GetVolumePropertyNode().GetColor().GetRange(rangeCT)
             colorTransferFunction = vtk.vtkColorTransferFunction()
             colorTransferFunction.AddRGBPoint(rangeCT[0], color[0], color[1], color[2])
             colorTransferFunction.AddRGBPoint(rangeCT[1], color[0], color[1], color[2])
             displayNode.GetVolumePropertyNode().SetColor(colorTransferFunction)
+    
+    def updateScalarOpacity(self):
+        if self.volProp:
+            min_val = self.ui.volumeThreshold.minimum
+            max_val = self.ui.volumeThreshold.maximum
+            threshold=self.ui.volumeThreshold.value
+            opacity=self.ui.volumeOpacity.value
+            high_opacity=0 if self.ui.vol_translucent.checked else opacity
+            n=self.scalarOpacity.GetSize()
+            p=[[0,0,0.5,0] for _ in range(n)]
+            p[0][:2]=[min_val,0]
+            p[1][:2]=[threshold - self.margin,0]
+            p[2][:2]=[threshold,opacity]
+            p[3][:2]=[threshold + self.margin,high_opacity]
+            p[4][:2]=[max_val,high_opacity]
+            for i in range(n):
+                self.scalarOpacity.SetNodeValue(i, p[i])
+            self.volProp.GetScalarOpacity().DeepCopy(self.scalarOpacity)
 
     def onVolumeThresholdChanged(self, value):
-        volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-        if volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
-            volumePropertyNode = displayNode.GetVolumePropertyNode()
+        self.updateScalarOpacity() 
 
-            # get the scalar opacity transfer function
-            scalarOpacity = volumePropertyNode.GetVolumeProperty().GetScalarOpacity()
-
-            # get the range of the scalar volume
-            range = volNode[0].GetImageData().GetScalarRange()
-            
-            # set the threshold
-            margin = range[1]/10
-            upperThreshold = value
-            scalarOpacity.RemoveAllPoints()
-            scalarOpacity.AddPoint(upperThreshold, self.ui.volumeOpacity.value)
-            scalarOpacity.AddPoint(max(range[0], upperThreshold-margin), 0.0)
-            
     # def onVolumeThresholdChanged(self, value):
     #     volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
     #     if volNode:
@@ -231,14 +252,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #         scalarOpacity.SetNodeValue(3,p3)
 
     def onVolumeOpacityChanged(self):
-        volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-        if volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
-            scalarOpacity = displayNode.GetVolumePropertyNode().GetVolumeProperty().GetScalarOpacity()
-            p = [0]*4
-            scalarOpacity.GetNodeValue(1, p)
-            p[1] = self.ui.volumeOpacity.value
-            scalarOpacity.SetNodeValue(1, p)
+        self.updateScalarOpacity()
 
     def rotateXSlider(self, value):
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
@@ -324,26 +338,26 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 # volume renderings view
                 volRenLogic = slicer.modules.volumerendering.logic()
                 displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(self.volNode)
-                if not displayNode: displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
+                if not displayNode: 
+                    displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
                 volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
             
+                self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
+
+                # define the scalarOpacity function
                 min_val, max_val = self.volNode.GetImageData().GetScalarRange()
                 self.ui.volumeThreshold.maximum = max_val
                 self.ui.volumeThreshold.minimum = min_val
                 self.ui.volumeThreshold.value = (max_val+min_val)/3
-
-                # self.set_volume_color()
+                self.updateScalarOpacity()
+                
                 self.ui.vol_visibility.checked = 1
-            
+
             detection_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".json")])
             if detection_files:
                 self.load_detections(os.path.join(dir_path, detection_files[0]))
                 self.create_spheres()
                 self.displayTable()
-
-                return 
-
-                #self.prepare_slices()
                 
     def load_detections(self, file_path):
         try:
@@ -586,24 +600,28 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def prepare_slices (self):
         if not self.detections or self.selected_detection < 0: 
-            return
-        
-        d=self.detections[self.selected_detection]
-
-        A = np.array(d["P1"])
-        B = np.array(d["P2"])
-
-        self.aneAxis = B - A
-        n=np.linalg.norm(self.aneAxis)
-        if n > 1e-8:
-            self.aneAxis /= n
+            self.axeAxis=np.array([0.0,1.0,0.0])
+            angleValue=0
         else:
-            self.aneAxis=np.array([0.0,0.0,1.0])
+            d=self.detections[self.selected_detection]
+
+            A = np.array(d["P1"])
+            B = np.array(d["P2"])
+
+            self.aneAxis = B - A
+            n=np.linalg.norm(self.aneAxis)
+            if n > 1e-8:
+                self.aneAxis /= n
+            else:
+                self.aneAxis=np.array([0.0,1.0,0.0])
+            angleValue = d['viewAngle'] 
+            self.aneOrigin=(A+B)/2
+            
         self.aneRz=rotate2Z(self.aneAxis)
-        self.aneOrigin=(A+B)/2
+
         self.reformatLogic = slicer.modules.reformat.logic()
 
-        self.ui.rotateAxisSlider.value=d['viewAngle']
+        self.ui.rotateAxisSlider.value=angleValue    
         self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
 
         self.centerCamera()
@@ -634,11 +652,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.mrmlScene.RemoveNode(node)
 
     def set_volume_visibility(self):
-        volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-        if volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(volNode[0])
-            if displayNode: displayNode.SetVisibility(self.ui.vol_visibility.checked)
+        if self.volNode:
+            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+            if displayNode:
+                displayNode.SetVisibility(self.ui.vol_visibility.checked)
     
+    def set_volume_translucent(self):
+        self.updateScalarOpacity()
+
+
     def ResetCamera(self):
         camera = slicer.util.getNode('Camera').GetCamera()
         camera.SetFocalPoint([0,0,0])
@@ -655,7 +677,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             node.GetDisplayNode().SetVisibility(self.ui.LinesVisibility.checked)
 
     def clearButton(self):
-        self.cleanup()
+        self.tableWidget.setCurrentItem(None)
+        self.onRowSelected(-1)
+        #self.cleanup()
 
     def remove_nodes_by_name(self, name):
         nodes = slicer.mrmlScene.GetNodesByName(name)
