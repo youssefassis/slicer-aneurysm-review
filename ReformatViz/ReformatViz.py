@@ -117,7 +117,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Slider: Rotate around axis
         self.ui.rotateAxisSlider.valueChanged.connect(self.rotateAxisSlider)
         self.ui.centerCamera.clicked.connect(self.centerCamera)
-
+        
+        # slice thickness
+        self.ui.thicknessSlider.valueChanged.connect(self.thicknessSlider)
 
         # self.ui.LinecheckBox.stateChanged.connect(self.set_size_visibility)
 
@@ -251,7 +253,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #         scalarOpacity.SetNodeValue(2,p2)
     #         scalarOpacity.SetNodeValue(3,p3)
 
-    def onVolumeOpacityChanged(self):
+    def onVolumeOpacityChanged(self,value):
         self.updateScalarOpacity()
 
     def rotateXSlider(self, value):
@@ -321,6 +323,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         layoutManager = slicer.app.layoutManager()
         controller = layoutManager.sliceWidget("Red").sliceController()
         controller.setSliceVisible(self.ui.axialVisibility.checked)
+
+    def thicknessSlider(self,value):
+        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        node.SetSlabReconstructionEnabled(1)
+        node.SetSlabReconstructionType(1) # Max Intensity Projection
+        node.SetSlabReconstructionThickness(value)
 
     def load_files(self):
         # save before loading
@@ -623,6 +631,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.rotateAxisSlider.value=angleValue    
         self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
+        self.thicknessSlider(self.ui.thicknessSlider.value)
 
         self.centerCamera()
 
