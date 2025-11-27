@@ -124,9 +124,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.LinecheckBox.stateChanged.connect(self.set_size_visibility)
 
         self.markups = None
-        self.spheres = None
-        self.appender_spheres = None
-        self.appender_lines = None
+        self.spheres = []
+        self.lines = []
         self.patient_path = None
         self.selected_detection = -1
         self.detections = []
@@ -191,8 +190,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.selected_detection  = item.row() if not isinstance(item, int) else item
 
         self.set_spheres_visibility()
-
-        # self.set_Lines_visibility()
+        self.set_lines_visibility()
         self.set_confidence_color()
         self.set_confidence_visibility()
         self.set_markups_color()
@@ -411,7 +409,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def create_spheres(self):
         if self.detections is None or len(self.detections) == 0: return
         # self.appender_spheres = vtk.vtkAppendPolyData() if self.appender_spheres is None else self.appender_spheres
-        self.appender_lines = vtk.vtkAppendPolyData() if self.appender_lines is None else self.appender_lines
+        #self.appender_lines = vtk.vtkAppendPolyData() if self.appender_lines is None else self.appender_lines
         self.spheres = []
         self.lines = []
         # self.lines = [slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsLineNode") for i in self.detections]
@@ -446,7 +444,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             sphere.Update()
 
             # Assign a unique name to each sphere
-            self.create_model(sphere, name=f'Sphere_{idx}')
+            m=self.create_model(sphere, name=f'Sphere_{idx}')
+            self.spheres.append(m)
 
             # node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode', sphere_name)
             # node.SetAndObservePolyData(sphere.GetOutput())
@@ -462,8 +461,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             line.SetPoint1(d['P1'])
             line.SetPoint2(d['P2'])
             line.SetResolution(30)
-            self.appender_lines.AddInputConnection(line.GetOutputPort())
-            self.appender_lines.Update()
+            line.Update()
+            m=self.create_model(line,name=f'Line_{idx}')
+            self.lines.append(m)
 
             # lineNode.SetName("Size")
             # self.lines[int(idx)].GetMeasurement('length').SetEnabled(False)
@@ -484,8 +484,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         
         # Lines: main axes
-        self.appender_lines.Update()
-        self.create_model(self.appender_lines, name="Lines")
         self.set_lines_color()
         self.set_lines_visibility()
 
@@ -498,20 +496,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
     def set_spheres_visibility(self):
         for i in range(len(self.detections)):
-            sphere_name = f'Sphere_{i}'
             value = self.ui.SpheresVisibility.checked if i == self.selected_detection else False
-            nodes = slicer.mrmlScene.GetNodesByName(sphere_name)
-            for node in nodes:
-                node.GetDisplayNode().SetVisibility(value)
+            self.spheres[i].GetDisplayNode().SetVisibility(value)
 
     def set_spheres_color(self, color=None):
         color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.SpheresColorPicker.color.red()/255, self.ui.SpheresColorPicker.color.green()/255, self.ui.SpheresColorPicker.color.blue()/255)
         for i in range(len(self.detections)):
-            sphere_name = f'Sphere_{i}'
-            nodes = slicer.mrmlScene.GetNodesByName(sphere_name)
-            for node in nodes:
-                node.GetDisplayNode().SetColor(color)
-
+            self.spheres[i].GetDisplayNode().SetColor(color)
+    
     def set_spheres_opacity(self):
         for i in range(len(self.detections)):
             sphere_name = f'Sphere_{i}'
@@ -519,6 +511,23 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             for node in nodes:
                 node.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
 
+    def set_lines_color(self, color=None):
+        color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.LinesColorPicker.color.red()/255, self.ui.LinesColorPicker.color.green()/255, self.ui.LinesColorPicker.color.blue()/255)
+        for i in range(len(self.detections)):
+            self.lines[i].GetDisplayNode().SetColor(color)
+
+    def set_lines_visibility(self):
+        for i in range(len(self.detections)):
+            value = self.ui.LinesVisibility.checked if i == self.selected_detection else False
+            self.lines[i].GetDisplayNode().SetVisibility(value)
+
+    #    color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.SpheresColorPicker.color.red()/255, self.ui.SpheresColorPicker.color.green()/255, self.ui.SpheresColorPicker.color.blue()/255)
+    #    for i in range(len(self.detections)):
+    #        line_name = f'Line_{i}'
+    #        nodes = slicer.mrmlScene.GetNodesByName(line_name)
+    #        for node in nodes:
+    #            node.GetDisplayNode().SetColor(color)
+    
     def create_model(self, model, name):
         #self.remove_nodes_by_name(name)
         node = slicer.modules.models.logic().AddModel(model.GetOutput())
@@ -583,11 +592,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #     for node in nodes:
     #         node.GetDisplayNode().SetVisibility(self.ui.SpheresVisibility.checked)
 
-    def set_lines_color(self, color=None):
-        color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.LinesColorPicker.color.red()/255, self.ui.LinesColorPicker.color.green()/255, self.ui.LinesColorPicker.color.blue()/255) 
-        nodes = slicer.mrmlScene.GetNodesByName("Lines")
-        for node in nodes:
-            node.GetDisplayNode().SetColor(color)
+    #def set_lines_color(self, color=None):
+    #    color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.LinesColorPicker.color.red()/255, self.ui.LinesColorPicker.color.green()/255, self.ui.LinesColorPicker.color.blue()/255) 
+    #    nodes = slicer.mrmlScene.GetNodesByName("Lines")
+    #    for node in nodes:
+    #        node.GetDisplayNode().SetColor(color)
 
 
     # def draw_lines(self):
@@ -680,10 +689,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.remove_nodes_by_type("vtkMRMLScalarVolumeNode") # remove existing volume
 
 
-    def set_lines_visibility(self):
-        nodes = slicer.mrmlScene.GetNodesByName("Lines")
-        for node in nodes:
-            node.GetDisplayNode().SetVisibility(self.ui.LinesVisibility.checked)
+    #def set_lines_visibility(self):
+    #    nodes = slicer.mrmlScene.GetNodesByName("Lines")
+    #    for node in nodes:
+    #        node.GetDisplayNode().SetVisibility(self.ui.LinesVisibility.checked)
 
     def clearButton(self):
         self.tableWidget.setCurrentItem(None)
