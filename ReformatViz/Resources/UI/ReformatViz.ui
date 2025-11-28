@@ -46,7 +46,21 @@
                 <property name="topMargin">
                   <number>0</number>
                 </property>
-                <item row="3" column="0" colspan="2">
+                <item row="0" column="0">
+                  <widget class="QLabel" name="label_8">
+                    <property name="text">
+                      <string>Input Patient</string>
+                    </property>
+                  </widget>
+                </item>
+                <item row="0" column="1">
+                  <widget class="QPushButton" name="load_volume_button">
+                    <property name="text">
+                      <string>Select</string>
+                    </property>
+                  </widget>
+                </item>
+                <item row="1" column="0" colspan="2">
                   <widget class="ctkCollapsibleGroupBox" name="Volume_CollapsibleGroupBox">
                     <property name="enabled">
                       <bool>true</bool>
@@ -63,10 +77,7 @@
                     <property name="collapsedHeight">
                       <number>6</number>
                     </property>
-                    <layout class="QGridLayout" name="gridLayout_3">
-                      <property name="leftMargin">
-                        <number>9</number>
-                      </property>
+                    <layout class="QGridLayout" name="gridLayout_3" columnstretch="0">
                       <property name="topMargin">
                         <number>0</number>
                       </property>
@@ -96,12 +107,78 @@
                           </item>
                           <item row="0" column="1">
                             <widget class="QCheckBox" name="vol_visibility">
+                              <property name="minimumSize">
+                                <size>
+                                  <width>70</width>
+                                  <height>0</height>
+                                </size>
+                              </property>
                               <property name="text">
                                 <string />
                               </property>
                             </widget>
                           </item>
                           <item row="0" column="2">
+                            <widget class="QLabel" name="label_vol_translucent">
+                              <property name="text">
+                                <string>Translucent</string>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="0" column="3">
+                            <widget class="QCheckBox" name="vol_translucent">
+                              <property name="minimumSize">
+                                <size>
+                                  <width>70</width>
+                                  <height>0</height>
+                                </size>
+                              </property>
+                              <property name="text">
+                                <string />
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="0" column="4">
+                            <widget class="QLabel" name="label_vol_crop">
+                              <property name="text">
+                                <string>Crop ROI</string>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="0" column="5">
+                            <widget class="QCheckBox" name="cropBox">
+                              <property name="minimumSize">
+                                <size>
+                                  <width>70</width>
+                                  <height>0</height>
+                                </size>
+                              </property>
+                              <property name="text">
+                                <string />
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="0" column="6">
+                            <widget class="QLabel" name="label_vol_crop_vis">
+                              <property name="text">
+                                <string>Show ROI</string>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="0" column="7">
+                            <widget class="QCheckBox" name="cropVisBox">
+                              <property name="minimumSize">
+                                <size>
+                                  <width>70</width>
+                                  <height>0</height>
+                                </size>
+                              </property>
+                              <property name="text">
+                                <string />
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="0" column="8">
                             <widget class="ctkColorPickerButton" name="volumeColor">
                               <property name="enabled">
                                 <bool>true</bool>
@@ -119,23 +196,14 @@
                               <property name="displayColorName">
                                 <bool>false</bool>
                               </property>
+                              <property name="toolTip">
+                                <string>3D vessel color</string>
+                              </property>
                             </widget>
                           </item>
+
+
                           <item row="1" column="0">
-                            <widget class="QLabel" name="label_vol_translucent">
-                              <property name="text">
-                                <string>Translucent</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="1">
-                            <widget class="QCheckBox" name="vol_translucent">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="0">
                             <widget class="QLabel" name="label_3">
                               <property name="minimumSize">
                                 <size>
@@ -148,7 +216,7 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="2" column="1" colspan="2">
+                          <item row="1" column="1" colspan="8">
                             <widget class="qMRMLSliderWidget" name="volumeThreshold">
                               <property name="singleStep">
                                 <double>5.000000000000000</double>
@@ -161,7 +229,7 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="3" column="0">
+                          <item row="2" column="0">
                             <widget class="QLabel" name="label">
                               <property name="minimumSize">
                                 <size>
@@ -174,7 +242,7 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="3" column="1" colspan="2">
+                          <item row="2" column="1" colspan="8">
                             <widget class="qMRMLSliderWidget" name="volumeOpacity">
                               <property name="singleStep">
                                 <double>0.010000000000000</double>
@@ -195,21 +263,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="0" column="1">
-                  <widget class="QPushButton" name="load_volume_button">
-                    <property name="text">
-                      <string>Select</string>
-                    </property>
-                  </widget>
-                </item>
-                <item row="0" column="0">
-                  <widget class="QLabel" name="label_8">
-                    <property name="text">
-                      <string>Input Patient</string>
-                    </property>
-                  </widget>
-                </item>
-                <item row="4" column="0" colspan="2">
+                <item row="2" column="0" colspan="2">
                   <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
                     <property name="title">
                       <string>Cut planes</string>
@@ -314,7 +368,7 @@
                     </layout>
                   </widget>
                 </item>
-                <item row="5" column="0" colspan="2">
+                <item row="3" column="0" colspan="2">
                   <widget class="ctkCollapsibleGroupBox" name="Detections_CollapsibleGroupBox">
                     <property name="sizePolicy">
                       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -393,21 +447,21 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="6">
+                          <item row="0" column="4">
                             <widget class="QLabel" name="label_4">
                               <property name="text">
                                 <string>Markups </string>
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="7">
+                          <item row="0" column="5">
                             <widget class="QCheckBox" name="MarkupsVisibility">
                               <property name="text">
                                 <string />
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="8">
+                          <item row="0" column="6">
                             <widget class="ctkColorPickerButton" name="MarkupsColorPicker">
                               <property name="color">
                                 <color>
@@ -421,28 +475,28 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="9">
+                          <item row="0" column="7">
                             <widget class="QLabel" name="label_16">
                               <property name="text">
                                 <string />
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="10">
+                          <item row="0" column="8">
                             <widget class="QLabel" name="label_6">
                               <property name="text">
                                 <string>Main Axis </string>
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="11">
+                          <item row="0" column="9">
                             <widget class="QCheckBox" name="LinesVisibility">
                               <property name="text">
                                 <string />
                               </property>
                             </widget>
                           </item>
-                          <item row="0" column="12">
+                          <item row="0" column="10">
                             <widget class="ctkColorPickerButton" name="LinesColorPicker">
                               <property name="color">
                                 <color>
@@ -456,14 +510,14 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="3" column="0">
+                          <item row="1" column="0">
                             <widget class="QLabel" name="label_7">
                               <property name="text">
                                 <string>Spheres </string>
                               </property>
                             </widget>
                           </item>
-                          <item row="3" column="1">
+                          <item row="1" column="1">
                             <widget class="QCheckBox" name="SpheresVisibility">
                               <property name="text">
                                 <string />
@@ -473,7 +527,7 @@
                               </property>
                             </widget>
                           </item>
-                          <item row="3" column="2">
+                          <item row="1" column="2">
                             <widget class="ctkColorPickerButton" name="SpheresColorPicker">
                               <property name="color">
                                 <color>
@@ -487,15 +541,14 @@
                               </property>
                             </widget>
                           </item>
-
-                          <item row="3" column="6">
+                          <item row="1" column="4">
                             <widget class="QLabel" name="label_2">
                               <property name="text">
                                 <string>Opacity</string>
                               </property>
                             </widget>
                           </item>
-                          <item row="3" column="7" colspan="6">
+                          <item row="1" column="5" colspan="6">
                             <widget class="qMRMLSliderWidget" name="SpheresOpacity">
                               <property name="sizePolicy">
                                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -517,6 +570,34 @@
                               </property>
                               <property name="value">
                                 <double>0.300000000000000</double>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="2" column="0">
+                            <widget class="QLabel" name="label_9">
+                              <property name="text">
+                                <string>Annotation: </string>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="2" column="2">
+                            <widget class="QPushButton" name="addButton">
+                              <property name="text">
+                                <string>Add</string>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="2" column="3">
+                            <widget class="QPushButton" name="okButton">
+                              <property name="text">
+                                <string>OK</string>
+                              </property>
+                            </widget>
+                          </item>
+                          <item row="2" column="4">
+                            <widget class="QPushButton" name="cancelButton">
+                              <property name="text">
+                                <string>Cancel</string>
                               </property>
                             </widget>
                           </item>
@@ -555,6 +636,13 @@
             <widget class="QPushButton" name="saveButton">
               <property name="text">
                 <string>Save</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="unselectButton">
+              <property name="text">
+                <string>Unselect all</string>
               </property>
             </widget>
           </item>
