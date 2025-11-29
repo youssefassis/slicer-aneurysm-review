@@ -167,7 +167,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Save/Unselect/Reset
         self.ui.saveButton.clicked.connect(self.save)
         self.ui.unselectButton.connect('clicked(bool)', self.unselectAllRows)
-        self.ui.cleanButton.connect('clicked(bool)', self.clearButton)
+        self.ui.cleanButton.connect('clicked(bool)', self.reset)
 
         # slices visibility
         self.ui.axialVisibility.stateChanged.connect(self.set_axial_slice_visibility)    
@@ -324,7 +324,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow')
         if node is not None:
             self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
-        self.onCropChanged()
+        
     
     def set_axial_slice_visibility(self):
         layoutManager = slicer.app.layoutManager()
@@ -345,9 +345,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.patient_path = dir_path
             # load the first volume file
             nii_volume_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".nii.gz")])
-            if nii_volume_files:
-                #if len(nii_volume_files)>1: slicer.util.errorDisplay('There too many volume files in that folder. Loading the first one.')
-                self.remove_existing_volumes() # remove existing volume
+            detection_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".json")])
+            if nii_volume_files and detection_files:
+                self.reset()
+
                 slicer.util.loadVolume(os.path.join(dir_path, nii_volume_files[0]))
 
                 self.volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")[0]
@@ -369,11 +370,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 
                 self.ui.vol_visibility.checked = 1
 
-            detection_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".json")])
-            if detection_files:
+                # detections
                 self.load_detections(os.path.join(dir_path, detection_files[0]))
                 self.create_spheres()
-                self.displayTable()
+                for d in self.detections:
+                    self.add_detection_to_table(d)
                 
     def load_detections(self, file_path):
         try:
@@ -396,11 +397,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             addMissingDetectionInfo(d)
 
         self.detections = sorted(self.detections, key=lambda x:x['confidence'], reverse=True)
-        
-    def displayTable(self):
-        self.tableWidget.clear()
-        for d in self.detections:
-            self.add_detection_to_table(d)
 
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
     def add_detection_to_table(self,d): 
@@ -614,6 +610,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
         self.thicknessSlider(self.ui.thicknessSlider.value)
         self.centerCamera()
+        self.onCropChanged()
 
     def centerCamera(self):
         # camera focal point 
@@ -755,32 +752,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 ###############################################################""
-
-    def ResetCamera(self):
-        camera = slicer.util.getNode('Camera').GetCamera()
-        camera.SetFocalPoint([0,0,0])
-        camera.SetPosition([0, 500, 0])
-        camera.SetViewUp([0, 0, 1])
-    
-    def remove_nodes_by_type(self, node_type_name):
-        volumeNodes = slicer.util.getNodesByClass(node_type_name)
-        for node in volumeNodes:
-            slicer.mrmlScene.RemoveNode(node)
-
-    def remove_existing_volumes(self):
-        self.remove_nodes_by_type("vtkMRMLScalarVolumeNode") # remove existing volume
-
-
-    def clearButton(self):
-        self.tableWidget.setCurrentItem(None)
-        self.onRowSelected(-1)
-        #self.cleanup()
-
-    def remove_nodes_by_name(self, name):
-        nodes = slicer.mrmlScene.GetNodesByName(name)
-        for node in nodes:
-            slicer.mrmlScene.RemoveNode(node)
-
     def save(self):
         dialog = qt.QFileDialog()
         filename = str(dialog.getSaveFileName(None,"Save detections","","JSON files (*.json)"))
@@ -808,10 +779,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.volNode:
             slicer.mrmlScene.RemoveNode(self.volNode)
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
+        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
+        for r in roiNode:
+            slicer.mrmlScene.RemoveNode(r)
         
         self.removeAnnotationNodes()
         
-        self.tableWidget.clear()
+        self.detections=[]
+
+        self.tableWidget.setRowCount(0)
         self.tableWidget.setCurrentItem(None)
         self.onRowSelected(-1)
     
