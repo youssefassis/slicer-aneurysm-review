@@ -636,7 +636,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
         node.SetName(name)
-        node.snap_mode=0
+        node.GetDisplayNode().SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeUnconstrained)
         # Added markup event
         node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.drawAnnotationSpheres)
         # Removed markup event
@@ -654,7 +654,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.modules.markups.logic().SetActiveList(self.tmpMark)
         slicer.modules.markups.logic().StartPlaceMode(1)
 
-    def removeAnnotationNodes(self):
+    def removeAnnotationNodes(self,caller=None, event=None):
         if self.tmpMark:
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
