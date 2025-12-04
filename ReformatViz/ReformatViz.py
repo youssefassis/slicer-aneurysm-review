@@ -179,12 +179,18 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # slice thickness
         self.ui.thicknessSlider.valueChanged.connect(self.thicknessSlider)
 
-        self.ostia : slicer.vtkMRMLMarkupsFiducialNode = None
-        self.domes : slicer.vtkMRMLMarkupsFiducialNode = None
+        self.ostia = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+        self.ostia.SetName("Ostium")
+        self.ostia.SetLocked(True)
+        self.domes = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+        self.domes.SetName("Dome")
+        self.domes.SetLocked(True)
         self.spheres = []
         self.lines = []
-        self.confidences : slicer.vtkMRMLMarkupsFiducialNode = None
-    
+        self.confidences = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+        self.confidences.SetName("Confidences")
+        self.confidences.SetLocked(True)
+
         self.patient_path = ''
         self.selected_detection = -1
         self.detections = []
@@ -346,7 +352,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # load the first volume file
             nii_volume_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".nii.gz")])
             detection_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".json")])
-            if nii_volume_files and detection_files:
+            if nii_volume_files:
                 self.reset()
 
                 slicer.util.loadVolume(os.path.join(dir_path, nii_volume_files[0]))
@@ -371,11 +377,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.vol_visibility.checked = 1
 
                 # detections
-                self.load_detections(os.path.join(dir_path, detection_files[0]))
-                self.create_spheres()
-                for d in self.detections:
-                    self.add_detection_to_table(d)
-                
+                if detection_files:
+                    self.load_detections(os.path.join(dir_path, detection_files[0]))
+                    self.create_spheres()
+                    for d in self.detections:
+                        self.add_detection_to_table(d)
+                    
     def load_detections(self, file_path):
         try:
             with open(file_path, 'r') as f:
@@ -386,8 +393,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not 'P1' in first_item or not 'P2' in first_item:
                 raise Exception()
         except:
-            slicer.util.errorDisplay('Please choose the detections file with the right format.')
-            return
+            slicer.util.errorDisplay('No valid detection file found')
+            data={}
 
         # sort by confidence score
         self.detections=[d for d in data.values()]
@@ -442,46 +449,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateObjectsDisplay()
         self.prepare_slices()
 
-    def unselectAllRows(self):
+    def unselectAllRows(self,reset_view=True):
         self.tableWidget.clearSelection()
         self.selected_detection=-1
         self.updateObjectsDisplay()
-        self.prepare_slices()
+        if reset_view:
+            self.prepare_slices()
     
     def create_spheres(self):
-        if self.detections is None or len(self.detections) == 0: return
-        if 'confidence' in self.detections[0]:
-            # Confidence Scores
-            self.confidences = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-            self.confidences.SetName("Confidences")
-        else:
-            self.confidences : slicer.vtkMRMLMarkupsFiducialNode =None
-
-        # Ostium Points
-        if self.ostia is not None:
-            slicer.mrmlScene.RemoveNode(self.ostia)
-
-        self.ostia = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        self.ostia.SetName("Ostium")
-        self.ostia.GetDisplayNode().SetVisibility(False)
         
-        # Dome Points
-        if self.domes is not None:
-            slicer.mrmlScene.RemoveNode(self.domes)
-
-        self.domes = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        self.domes.SetName("Dome")
-        self.domes.GetDisplayNode().SetVisibility(False)
-
-        self.ostia.SetLocked(1)
-        self.domes.SetLocked(1)
-        self.confidences.SetLocked(1)
-        
-        self.ostia.GetDisplayNode().SetVisibility(1)
-        self.domes.GetDisplayNode().SetVisibility(1)
-        self.confidences.GetDisplayNode().SetVisibility(1)
-
-
         for d in self.detections:
             self.add_detection_to_scene(d)
         
@@ -520,15 +496,20 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         m=createModel(line,name=f'Line_{idx}')
         self.lines.append(m)
 
-        if self.confidences is not None:
-            # Confidence scores
-            n = self.confidences.AddControlPoint(d['center'])
-            self.confidences.SetNthControlPointLabel(n, str(round(d['confidence'] * 100, 3))+" %")
+        # Confidence scores
+        if not self.confidences.GetDisplayNode():
+            self.confidences.CreateDefaultDisplayNodes()
+        n = self.confidences.AddControlPoint(d['center'])
+        self.confidences.SetNthControlPointLabel(n, str(round(d['confidence'] * 100, 3))+" %")
         
         # Confidence scores
+        if not self.ostia.GetDisplayNode():
+            self.ostia.CreateDefaultDisplayNodes()
         self.ostia.AddControlPoint(d['P1'])
 
         # Confidence scores
+        if not self.domes.GetDisplayNode():
+            self.domes.CreateDefaultDisplayNodes() 
         self.domes.AddControlPoint(d['P2'])
 
     def set_spheres_visibility(self):
@@ -556,7 +537,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.lines[i].GetDisplayNode().SetVisibility(value)
 
     def set_confidence_color(self, color=None):
-        if self.confidences:
+        if self.confidences.GetDisplayNode():
             r, g, b = self.ui.ConfidenceColorPicker.color.red()/255, self.ui.ConfidenceColorPicker.color.green()/255, self.ui.ConfidenceColorPicker.color.blue()/255
             self.confidences.GetDisplayNode().SetColor(r,g,b)
             self.confidences.GetDisplayNode().SetSelectedColor(r,g,b)
@@ -568,7 +549,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.confidences.SetNthControlPointVisibility(i,value)
 
     def set_markups_color(self, color=None):
-        if self.ostia and self.domes:
+        if self.ostia.GetDisplayNode() and self.domes.GetDisplayNode():
             r, g, b = self.ui.MarkupsColorPicker.color.red()/255, self.ui.MarkupsColorPicker.color.green()/255, self.ui.MarkupsColorPicker.color.blue()/255
             self.ostia.GetDisplayNode().SetColor(r,g,b)
             self.ostia.GetDisplayNode().SetSelectedColor(r,g,b)
@@ -576,14 +557,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.domes.GetDisplayNode().SetSelectedColor(r,g,b)
     
     def set_markups_visibility(self):
-        if self.ostia and self.domes:
-            for i in range(len(self.detections)):
-                value = self.ui.MarkupsVisibility.checked if i == self.selected_detection  or self.selected_detection < 0 else False
-                self.ostia.SetNthControlPointVisibility(i,value)
-                self.domes.SetNthControlPointVisibility(i,value)
+        for i in range(len(self.detections)):
+            value = self.ui.MarkupsVisibility.checked if i == self.selected_detection  or self.selected_detection < 0 else False
+            self.ostia.SetNthControlPointVisibility(i,value)
+            self.domes.SetNthControlPointVisibility(i,value)
     
     def prepare_slices (self):
-        if not self.detections or self.selected_detection < 0: 
+        if len(self.detections)==0 or self.selected_detection < 0: 
             self.aneAxis=np.array([0.0,1.0,0.0])
             #self.aneRz=np.eye(3)
             self.aneOrigin=np.zeros(3)
@@ -658,17 +638,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         node.SetName(name)
         node.snap_mode=0
         # Added markup event
-        node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.drawAnnotationSpheres, 2)
+        node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.drawAnnotationSpheres)
         # Removed markup event
-        node.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.removeAnnotationNodes, 2)
+        node.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.removeAnnotationNodes)
         # Markup position modified event
-        node.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres, 2)
+        node.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres)
 
         self.tmpMark = node
 
     
     def addAnnotationNode(self):
-        self.unselectAllRows()
+        self.unselectAllRows(reset_view=False)
         if not self.tmpMark:
             self.prepareAnnotationNode(name="P")
         slicer.modules.markups.logic().SetActiveList(self.tmpMark)
@@ -767,15 +747,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for node in self.lines:
             slicer.mrmlScene.RemoveNode(node)
         self.lines=[]
-        if self.confidences is not None:
-            slicer.mrmlScene.RemoveNode(self.confidences)
-        self.confidences : slicer.vtkMRMLMarkupsFiducialNode = None
-        if self.ostia:
-            slicer.mrmlScene.RemoveNode(self.ostia)
-        self.ostia : slicer.vtkMRMLMarkupsFiducialNode = None
-        if self.domes:
-            slicer.mrmlScene.RemoveNode(self.domes)
-        self.domes : slicer.vtkMRMLMarkupsFiducialNode = None
+        self.confidences.RemoveAllControlPoints()
+        self.ostia.RemoveAllControlPoints()
+        self.domes.RemoveAllControlPoints()
         if self.volNode:
             slicer.mrmlScene.RemoveNode(self.volNode)
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
