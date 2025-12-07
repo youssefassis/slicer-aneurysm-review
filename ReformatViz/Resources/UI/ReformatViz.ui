@@ -62,9 +62,10 @@
                 </item>
                 <item row="1" column="0" colspan="2">
                   <widget class="ctkCollapsibleGroupBox" name="Volume_CollapsibleGroupBox">
-                    <property name="enabled">
+                    <!--<property
+                    name="enabled">
                       <bool>true</bool>
-                    </property>
+                    </property>-->
                     <property name="title">
                       <string>3D Volume</string>
                     </property>
@@ -78,15 +79,18 @@
                       <number>6</number>
                     </property>
                     <layout class="QGridLayout" name="gridLayout_3" columnstretch="0">
-                      <property name="topMargin">
+                      <!--><property
+                      name="topMargin">
                         <number>0</number>
                       </property>
                       <property name="bottomMargin">
                         <number>0</number>
-                      </property>
-                      <item row="0" column="0" colspan="2">
+                      </property>-->
+                      <!--<item
+                row="0" column="0" colspan="2">
                         <layout class="QGridLayout" name="gridLayout">
-                          <property name="sizeConstraint">
+                          <property
+                          name="sizeConstraint">
                             <enum>QLayout::SetMinimumSize</enum>
                           </property>
                           <property name="bottomMargin">
@@ -98,168 +102,189 @@
                           <property name="verticalSpacing">
                             <number>2</number>
                           </property>
-                          <item row="0" column="0">
+                          <item
+                          row="0" column="0">
                             <widget class="QLabel" name="label_13">
                               <property name="text">
                                 <string>Visibility</string>
                               </property>
                             </widget>
-                          </item>
-                          <item row="0" column="1">
-                            <widget class="QCheckBox" name="vol_visibility">
-                              <property name="minimumSize">
+                          </item>-->
+                      <item row="0" column="0">
+                        <widget class="QCheckBox" name="vol_visibility">
+                          <!--<property
+                              name="minimumSize">
                                 <size>
                                   <width>70</width>
                                   <height>0</height>
                                 </size>
-                              </property>
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="2">
+                              </property>-->
+                          <property name="text">
+                            <string>Visibility</string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--<item
+                          row="0" column="2">
                             <widget class="QLabel" name="label_vol_translucent">
                               <property name="text">
                                 <string>Translucent</string>
                               </property>
                             </widget>
-                          </item>
-                          <item row="0" column="3">
-                            <widget class="QCheckBox" name="vol_translucent">
-                              <property name="minimumSize">
+                          </item>-->
+                      <item row="0" column="1">
+                        <widget class="QCheckBox" name="vol_translucent">
+                          <!--<property
+                              name="minimumSize">
                                 <size>
                                   <width>70</width>
                                   <height>0</height>
                                 </size>
-                              </property>
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="4">
+                              </property>-->
+                          <property name="text">
+                            <string>Translucent</string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="0" column="2">
+                        <widget class="ctkColorPickerButton" name="volumeColor">
+                          <property name="enabled">
+                            <bool>true</bool>
+                          </property>
+                          <property name="color">
+                            <color>
+                              <red>255</red>
+                              <green>255</green>
+                              <blue>255</blue>
+                            </color>
+                          </property>
+                          <property name="colorName">
+                            <string />
+                          </property>
+                          <property name="displayColorName">
+                            <bool>false</bool>
+                          </property>
+                          <property name="toolTip">
+                            <string>3D vessel color</string>
+                          </property>
+                        </widget>
+                      </item>
+
+                      <!--<item
+                          row="1" column="0">
                             <widget class="QLabel" name="label_vol_crop">
                               <property name="text">
                                 <string>Crop ROI</string>
                               </property>
                             </widget>
-                          </item>
-                          <item row="0" column="5">
-                            <widget class="QCheckBox" name="cropBox">
-                              <property name="minimumSize">
+                          </item>-->
+                      <item row="1" column="0">
+                        <widget class="QCheckBox" name="cropBox">
+                          <!--<property
+                              name="minimumSize">
                                 <size>
                                   <width>70</width>
                                   <height>0</height>
                                 </size>
-                              </property>
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="6">
+                              </property>-->
+                          <property name="text">
+                            <string>Crop ROI</string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--<item
+                          row="1" column="2">
                             <widget class="QLabel" name="label_vol_crop_vis">
                               <property name="text">
                                 <string>Show ROI</string>
                               </property>
                             </widget>
-                          </item>
-                          <item row="0" column="7">
-                            <widget class="QCheckBox" name="cropVisBox">
-                              <property name="minimumSize">
+                          </item>-->
+                      <item row="1" column="1">
+                        <widget class="QCheckBox" name="cropVisBox">
+                          <!-- <property name="minimumSize">
                                 <size>
                                   <width>70</width>
                                   <height>0</height>
                                 </size>
-                              </property>
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="8">
-                            <widget class="ctkColorPickerButton" name="volumeColor">
-                              <property name="enabled">
-                                <bool>true</bool>
-                              </property>
-                              <property name="color">
-                                <color>
-                                  <red>255</red>
-                                  <green>255</green>
-                                  <blue>255</blue>
-                                </color>
-                              </property>
-                              <property name="colorName">
-                                <string />
-                              </property>
-                              <property name="displayColorName">
-                                <bool>false</bool>
-                              </property>
-                              <property name="toolTip">
-                                <string>3D vessel color</string>
-                              </property>
-                            </widget>
-                          </item>
-
-
-                          <item row="1" column="0">
-                            <widget class="QLabel" name="label_3">
-                              <property name="minimumSize">
-                                <size>
-                                  <width>85</width>
-                                  <height>0</height>
-                                </size>
-                              </property>
-                              <property name="text">
-                                <string>Threshold</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="1" colspan="8">
-                            <widget class="qMRMLSliderWidget" name="volumeThreshold">
-                              <property name="singleStep">
-                                <double>5.000000000000000</double>
-                              </property>
-                              <property name="pageStep">
-                                <double>5.000000000000000</double>
-                              </property>
-                              <property name="maximum">
-                                <double>100.000000000000000</double>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="0">
-                            <widget class="QLabel" name="label">
-                              <property name="minimumSize">
-                                <size>
-                                  <width>85</width>
-                                  <height>0</height>
-                                </size>
-                              </property>
-                              <property name="text">
-                                <string>Opacity</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="1" colspan="8">
-                            <widget class="qMRMLSliderWidget" name="volumeOpacity">
-                              <property name="singleStep">
-                                <double>0.010000000000000</double>
-                              </property>
-                              <property name="pageStep">
-                                <double>0.010000000000000</double>
-                              </property>
-                              <property name="maximum">
-                                <double>1.000000000000000</double>
-                              </property>
-                              <property name="value">
-                                <double>1.000000000000000</double>
-                              </property>
-                            </widget>
-                          </item>
-                        </layout>
+                              </property>-->
+                          <property name="text">
+                            <string>Show ROI</string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                        </widget>
                       </item>
+
+                      <item row="2" column="0">
+                        <widget class="QLabel" name="label_3">
+                          <!--<property
+                              name="minimumSize">
+                                <size>
+                                  <width>70</width>
+                                  <height>0</height>
+                                </size>
+                              </property>-->
+                          <property name="text">
+                            <string>Threshold</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="2" column="1" colspan="2">
+                        <widget class="qMRMLSliderWidget" name="volumeThreshold">
+                          <property name="singleStep">
+                            <double>5.000000000000000</double>
+                          </property>
+                          <property name="pageStep">
+                            <double>5.000000000000000</double>
+                          </property>
+                          <property name="maximum">
+                            <double>100.000000000000000</double>
+                          </property>
+                        </widget>
+                      </item>
+
+                      <item row="3" column="0">
+                        <widget class="QLabel" name="label">
+                          <property name="minimumSize">
+                            <size>
+                              <width>85</width>
+                              <height>0</height>
+                            </size>
+                          </property>
+                          <property name="text">
+                            <string>Opacity</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="3" column="1" colspan="2">
+                        <widget class="qMRMLSliderWidget" name="volumeOpacity">
+                          <property name="singleStep">
+                            <double>0.010000000000000</double>
+                          </property>
+                          <property name="pageStep">
+                            <double>0.010000000000000</double>
+                          </property>
+                          <property name="maximum">
+                            <double>1.000000000000000</double>
+                          </property>
+                          <property name="value">
+                            <double>1.000000000000000</double>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--</layout>
+            </item>-->
                     </layout>
                   </widget>
                 </item>
@@ -281,7 +306,8 @@
                       <property name="bottomMargin">
                         <number>0</number>
                       </property>
-                      <item row="0" column="0">
+                      <!--<item
+                      row="0" column="0">
                         <layout class="QGridLayout" name="gridLayout_4">
                           <property name="leftMargin">
                             <number>0</number>
@@ -294,78 +320,82 @@
                           </property>
                           <property name="verticalSpacing">
                             <number>2</number>
-                          </property>
+                          </property>-->
 
-                          <item row="0" column="0">
+                      <!--<item
+                          row="0" column="0">
                             <widget class="QLabel" name="label_14">
                               <property name="text">
                                 <string>Visibility</string>
                               </property>
                             </widget>
-                          </item>
-                          <item row="0" column="1">
-                            <widget class="QCheckBox" name="axialVisibility">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="2">
-                            <widget class="QPushButton" name="centerCamera">
-                              <property name="text">
-                                <string>Center view</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="0">
-                            <widget class="QLabel" name="label_12">
-                              <property name="text">
-                                <string>Angle</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="1" colspan="2">
-                            <widget class="ctkSliderWidget" name="rotateAxisSlider">
-                              <property name="singleStep">
-                                <double>1.000000000000000</double>
-                              </property>
-                              <property name="pageStep">
-                                <double>10.000000000000000</double>
-                              </property>
-                              <property name="minimum">
-                                <double>-180.000000000000000</double>
-                              </property>
-                              <property name="maximum">
-                                <double>180.000000000000000</double>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="0">
-                            <widget class="QLabel" name="label_12">
-                              <property name="text">
-                                <string>Thickness</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="1" colspan="2">
-                            <widget class="ctkSliderWidget" name="thicknessSlider">
-                              <property name="singleStep">
-                                <double>0.100000000000000</double>
-                              </property>
-                              <property name="pageStep">
-                                <double>1.000000000000000</double>
-                              </property>
-                              <property name="minimum">
-                                <double>0.100000000000000</double>
-                              </property>
-                              <property name="maximum">
-                                <double>20.000000000000000</double>
-                              </property>
-                            </widget>
-                          </item>
-                        </layout>
+                          </item>-->
+                      <item row="0" column="0">
+                        <widget class="QCheckBox" name="axialVisibility">
+                          <property name="text">
+                            <string>Visibility</string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="0" column="1">
+                        <widget class="QPushButton" name="centerCamera">
+                          <property name="text">
+                            <string>Center view</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="1" column="0">
+                        <widget class="QLabel" name="label_12">
+                          <property name="text">
+                            <string>Angle</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="1" column="1">
+                        <widget class="ctkSliderWidget" name="rotateAxisSlider">
+                          <property name="singleStep">
+                            <double>1.000000000000000</double>
+                          </property>
+                          <property name="pageStep">
+                            <double>10.000000000000000</double>
+                          </property>
+                          <property name="minimum">
+                            <double>-180.000000000000000</double>
+                          </property>
+                          <property name="maximum">
+                            <double>180.000000000000000</double>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="2" column="0">
+                        <widget class="QLabel" name="label_12">
+                          <property name="text">
+                            <string>Thickness</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="2" column="1">
+                        <widget class="ctkSliderWidget" name="thicknessSlider">
+                          <property name="singleStep">
+                            <double>0.100000000000000</double>
+                          </property>
+                          <property name="pageStep">
+                            <double>1.000000000000000</double>
+                          </property>
+                          <property name="minimum">
+                            <double>0.100000000000000</double>
+                          </property>
+                          <property name="maximum">
+                            <double>20.000000000000000</double>
+                          </property>
+                        </widget>
                       </item>
                     </layout>
+                    <!--</item>
+                    </layout>-->
                   </widget>
                 </item>
                 <item row="3" column="0" colspan="2">
@@ -379,13 +409,13 @@
                     <property name="title">
                       <string>Detections</string>
                     </property>
-                    <property name="checked">
-                      <bool>true</bool>
+                    <property name="collapsed">
+                      <bool>false</bool>
                     </property>
                     <property name="collapsedHeight">
                       <number>6</number>
                     </property>
-                    <layout class="QGridLayout" name="gridLayout_6">
+                    <layout class="QGridLayout" name="gridLayout_6" columnstretch="0">
                       <property name="sizeConstraint">
                         <enum>QLayout::SetDefaultConstraint</enum>
                       </property>
@@ -395,7 +425,8 @@
                       <property name="bottomMargin">
                         <number>0</number>
                       </property>
-                      <item row="0" column="0">
+                      <!--<item
+                      row="0" column="0">
                         <layout class="QGridLayout" name="gridLayout_7">
                           <property name="leftMargin">
                             <number>0</number>
@@ -411,198 +442,226 @@
                           </property>
                           <property name="verticalSpacing">
                             <number>2</number>
+                          </property>-->
+                      <!--<item
+                      row="0" column="0">
+                        <widget class="QLabel" name="label_5">
+                          <property name="text">
+                            <string>Confidence </string>
                           </property>
-                          <item row="0" column="0">
-                            <widget class="QLabel" name="label_5">
-                              <property name="text">
-                                <string>Confidence </string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="1">
-                            <widget class="QCheckBox" name="ConfidenceVisibility">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="2">
-                            <widget class="ctkColorPickerButton" name="ConfidenceColorPicker">
-                              <property name="color">
-                                <color>
-                                  <red>255</red>
-                                  <green>0</green>
-                                  <blue>0</blue>
-                                </color>
-                              </property>
-                              <property name="displayColorName">
-                                <bool>false</bool>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="3">
-                            <widget class="QLabel" name="label_15">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="4">
-                            <widget class="QLabel" name="label_4">
-                              <property name="text">
-                                <string>Markups </string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="5">
-                            <widget class="QCheckBox" name="MarkupsVisibility">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="6">
-                            <widget class="ctkColorPickerButton" name="MarkupsColorPicker">
-                              <property name="color">
-                                <color>
-                                  <red>255</red>
-                                  <green>255</green>
-                                  <blue>0</blue>
-                                </color>
-                              </property>
-                              <property name="displayColorName">
-                                <bool>false</bool>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="7">
-                            <widget class="QLabel" name="label_16">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="8">
-                            <widget class="QLabel" name="label_6">
-                              <property name="text">
-                                <string>Main Axis </string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="9">
-                            <widget class="QCheckBox" name="LinesVisibility">
-                              <property name="text">
-                                <string />
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="0" column="10">
-                            <widget class="ctkColorPickerButton" name="LinesColorPicker">
-                              <property name="color">
-                                <color>
-                                  <red>255</red>
-                                  <green>0</green>
-                                  <blue>0</blue>
-                                </color>
-                              </property>
-                              <property name="displayColorName">
-                                <bool>false</bool>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="0">
-                            <widget class="QLabel" name="label_7">
-                              <property name="text">
-                                <string>Spheres </string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="1">
-                            <widget class="QCheckBox" name="SpheresVisibility">
-                              <property name="text">
-                                <string />
-                              </property>
-                              <property name="checked">
-                                <bool>false</bool>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="2">
-                            <widget class="ctkColorPickerButton" name="SpheresColorPicker">
-                              <property name="color">
-                                <color>
-                                  <red>0</red>
-                                  <green>255</green>
-                                  <blue>0</blue>
-                                </color>
-                              </property>
-                              <property name="displayColorName">
-                                <bool>false</bool>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="4">
-                            <widget class="QLabel" name="label_2">
-                              <property name="text">
-                                <string>Opacity</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="1" column="5" colspan="6">
-                            <widget class="qMRMLSliderWidget" name="SpheresOpacity">
-                              <property name="sizePolicy">
-                                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                                  <horstretch>0</horstretch>
-                                  <verstretch>0</verstretch>
-                                </sizepolicy>
-                              </property>
-                              <property name="decimals">
-                                <number>2</number>
-                              </property>
-                              <property name="singleStep">
-                                <double>0.000100000000000</double>
-                              </property>
-                              <property name="pageStep">
-                                <double>0.000100000000000</double>
-                              </property>
-                              <property name="maximum">
-                                <double>1.000000000000000</double>
-                              </property>
-                              <property name="value">
-                                <double>0.300000000000000</double>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="0">
-                            <widget class="QLabel" name="label_9">
-                              <property name="text">
-                                <string>Annotation: </string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="2">
-                            <widget class="QPushButton" name="addButton">
-                              <property name="text">
-                                <string>Add</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="3">
-                            <widget class="QPushButton" name="okButton">
-                              <property name="text">
-                                <string>OK</string>
-                              </property>
-                            </widget>
-                          </item>
-                          <item row="2" column="4">
-                            <widget class="QPushButton" name="cancelButton">
-                              <property name="text">
-                                <string>Cancel</string>
-                              </property>
-                            </widget>
-                          </item>
-                        </layout>
+                        </widget>
+                      </item>-->
+                      <item row="0" column="0">
+                        <widget class="QCheckBox" name="ConfidenceVisibility">
+                          <property name="text">
+                            <string>Confidence </string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                          <property name="checked">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
                       </item>
+                      <item row="0" column="1">
+                        <widget class="ctkColorPickerButton" name="ConfidenceColorPicker">
+                          <property name="color">
+                            <color>
+                              <red>255</red>
+                              <green>0</green>
+                              <blue>0</blue>
+                            </color>
+                          </property>
+                          <property name="displayColorName">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--<item
+                      row="0" column="3">
+                        <widget class="QLabel" name="label_15">
+                          <property name="text">
+                            <string />
+                          </property>
+                        </widget>
+                      </item>-->
+                      <!--<item
+                      row="0" column="4">
+                        <widget class="QLabel" name="label_4">
+                          <property name="text">
+                            <string>Markups </string>
+                          </property>
+                        </widget>
+                      </item>-->
+                      <item row="1" column="0">
+                        <widget class="QCheckBox" name="MarkupsVisibility">
+                          <property name="text">
+                            <string>Markups </string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                          <property name="checked">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="1" column="1">
+                        <widget class="ctkColorPickerButton" name="MarkupsColorPicker">
+                          <property name="color">
+                            <color>
+                              <red>255</red>
+                              <green>255</green>
+                              <blue>0</blue>
+                            </color>
+                          </property>
+                          <property name="displayColorName">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--<item
+                      row="0" column="7">
+                        <widget class="QLabel" name="label_16">
+                          <property name="text">
+                            <string />
+                          </property>
+                        </widget>
+                      </item>-->
+                      <!--<item
+                      row="0" column="8">
+                        <widget class="QLabel" name="label_6">
+                          <property name="text">
+                            <string>Main Axis </string>
+                          </property>
+                        </widget>
+                      </item>-->
+                      <item row="2" column="0">
+                        <widget class="QCheckBox" name="LinesVisibility">
+                          <property name="text">
+                            <string>Main Axis </string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                          <property name="checked">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="2" column="1">
+                        <widget class="ctkColorPickerButton" name="LinesColorPicker">
+                          <property name="color">
+                            <color>
+                              <red>255</red>
+                              <green>0</green>
+                              <blue>0</blue>
+                            </color>
+                          </property>
+                          <property name="displayColorName">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--<item
+                      row="1" column="0">
+                        <widget class="QLabel" name="label_7">
+                          <property name="text">
+                            <string>Spheres </string>
+                          </property>
+                        </widget>
+                      </item>-->
+                      <item row="3" column="0">
+                        <widget class="QCheckBox" name="SpheresVisibility">
+                          <property name="text">
+                            <string>Spheres </string>
+                          </property>
+                          <property name="layoutDirection">
+                            <enum>Qt::RightToLeft</enum>
+                          </property>
+                          <property name="checked">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="3" column="1">
+                        <widget class="ctkColorPickerButton" name="SpheresColorPicker">
+                          <property name="color">
+                            <color>
+                              <red>0</red>
+                              <green>255</green>
+                              <blue>0</blue>
+                            </color>
+                          </property>
+                          <property name="displayColorName">
+                            <bool>false</bool>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="4" column="0">
+                        <widget class="QLabel" name="label_2">
+                          <property name="text">
+                            <string>Opacity</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="4" column="1" colspan="2">
+                        <widget class="qMRMLSliderWidget" name="SpheresOpacity">
+                          <property name="sizePolicy">
+                            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                            </sizepolicy>
+                          </property>
+                          <property name="decimals">
+                            <number>2</number>
+                          </property>
+                          <property name="singleStep">
+                            <double>0.000100000000000</double>
+                          </property>
+                          <property name="pageStep">
+                            <double>0.000100000000000</double>
+                          </property>
+                          <property name="maximum">
+                            <double>1.000000000000000</double>
+                          </property>
+                          <property name="value">
+                            <double>0.300000000000000</double>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--<item
+                      row="2" column="0">
+                        <widget class="QLabel" name="label_9">
+                          <property name="text">
+                            <string>Annotation: </string>
+                          </property>
+                        </widget>
+                      </item>-->
+                      <item row="5" column="0">
+                        <widget class="QPushButton" name="addButton">
+                          <property name="text">
+                            <string>Add</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="5" column="1">
+                        <widget class="QPushButton" name="okButton">
+                          <property name="text">
+                            <string>OK</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <item row="5" column="2">
+                        <widget class="QPushButton" name="cancelButton">
+                          <property name="text">
+                            <string>Cancel</string>
+                          </property>
+                        </widget>
+                      </item>
+                      <!--</layout>
+                      </item>-->
                     </layout>
                   </widget>
                 </item>
