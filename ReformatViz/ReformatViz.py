@@ -654,15 +654,23 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.modules.markups.logic().SetActiveList(self.tmpMark)
         slicer.modules.markups.logic().StartPlaceMode(1)
 
+        self.ui.addButton.setEnabled(False)
+        self.ui.okButton.setEnabled(True)
+        self.ui.cancelButton.setEnabled(True)
+
     def removeAnnotationNodes(self,caller=None, event=None):
         if self.tmpMark:
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
             slicer.mrmlScene.RemoveNode(self.tmpSphere)
 
-        self.tmpMark : slicer.vtkMRMLMarkupsNode = None
+        self.tmpMark : slicer.vtkMRMLMarkupsFiducialNode = None
         self.tmpSphere : slicer.vtkMRMLModelNode = None
         self.tmpSphereSource : slicer.vtkSphereSource = None
+
+        self.ui.addButton.setEnabled(True)
+        self.ui.okButton.setEnabled(False)
+        self.ui.cancelButton.setEnabled(False)
 
     def validateAnnotation(self):
         markups = self.tmpMark
@@ -685,6 +693,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
             self.onRowSelected(self.selected_detection)
             self.updateObjectsDisplay()
+            self.ui.addButton.setEnabled(True)
+            self.ui.okButton.setEnabled(False)
+            self.ui.cancelButton.setEnabled(False)
+
 
 ###############################################################""    
     def drawAnnotationSpheres(self, caller=None, event=None):
