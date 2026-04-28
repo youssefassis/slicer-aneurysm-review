@@ -634,15 +634,18 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.mrmlScene.RemoveNode(self.tmpSphere)
             self.tmpSphere : slicer.vtkMRMLModelNode = None
 
-        node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        node.SetName(name)
-        node.GetDisplayNode().SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeUnconstrained)
+        node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode",name)
+        node.CreateDefaultDisplayNodes()
+        #node = slicer.mrmlScene.GetNodeByID(slicer.modules.markups.logic().AddNewFiducialNode())
+        #node=slicer.mrmlScene.GetNodeByID(slicer.modules.markups.logic().GetActiveListID())
+        #node.SetName(name)
+
         # Added markup event
         node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.drawAnnotationSpheres)
         # Removed markup event
-        node.AddObserver((slicer.vtkMRMLMarkupsNode).PointRemovedEvent, self.removeAnnotationNodes)
+        #node.AddObserver(slicer.vtkMRMLMarkupsNode.MarkupRemovedEvent, self.removeAnnotationNodes)
         # Markup position modified event
-        node.AddObserver((slicer.vtkMRMLMarkupsNode).PointModifiedEvent, self.MoveSpheres)
+        node.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.MoveSpheres)
 
         self.tmpMark = node
 
@@ -651,15 +654,16 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.unselectAllRows(reset_view=False)
         if not self.tmpMark:
             self.prepareAnnotationNode(name="P")
+            
         slicer.modules.markups.logic().SetActiveList(self.tmpMark)
         slicer.modules.markups.logic().StartPlaceMode(1)
 
         self.ui.addButton.setEnabled(False)
         self.ui.okButton.setEnabled(True)
         self.ui.cancelButton.setEnabled(True)
-
+    
     def removeAnnotationNodes(self,caller=None, event=None):
-        if self.tmpMark:
+        if self.tmpMark:    
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
             slicer.mrmlScene.RemoveNode(self.tmpSphere)
@@ -701,12 +705,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 ###############################################################""    
     def drawAnnotationSpheres(self, caller=None, event=None):
         markups : slicer.vtkMRMLMarkupsFiducialNode = caller
-
         nb_points = markups.GetNumberOfControlPoints()
         if nb_points < 2: return
-        
+                
         slicer.modules.markups.logic().StartPlaceMode(0)
-        
+        markups.GetDisplayNode().SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeUnconstrained)
         p1, p2 = np.empty(3), np.empty(3)
         markups.GetNthControlPointPositionWorld(0, p1)        
         markups.GetNthControlPointPositionWorld(1, p2)
@@ -729,6 +732,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
  
     def MoveSpheres(self, caller=None, event=None):
         markups : slicer.vtkMRMLMarkupsFiducial = caller
+
         if self.tmpSphereSource:
             p1, p2 = np.empty(3), np.empty(3)
             markups.GetNthControlPointPositionWorld(0, p1)
