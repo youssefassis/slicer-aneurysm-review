@@ -98,8 +98,16 @@ def addMissingDetectionInfo(d):
         d['viewAngle'] = 0
     if not 'aneurysm' in d:
         d['aneurysm'] = False
+    
     return d
 
+def setLikertScore(d, i):
+    if i==0:
+        d.pop('Likert',None)
+    else:
+        d['Likert'] = i
+    return d
+    
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
@@ -210,7 +218,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         self.tableWidget = qt.QTableWidget()
         # self.tableWidget.setMaximumHeight(150)
-        columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?']
+        columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
         self.tableWidget.setColumnCount(len(columns))
         self.tableWidget.setHorizontalHeaderLabels(columns)
         self.tableWidget.horizontalHeader().setStretchLastSection(True)
@@ -409,10 +417,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def add_detection_to_table(self,d): 
         idx=self.tableWidget.rowCount
         self.tableWidget.insertRow(idx)
-        columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?']
+        columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
         # needed here because columns headers require at least one row...
         self.tableWidget.setColumnCount(len(columns))
         self.tableWidget.setHorizontalHeaderLabels(columns)
+        
         # Confidence score
         confidence = round(d['confidence']*100, 3)
         itm = qt.QTableWidgetItem(str(confidence))
@@ -436,9 +445,20 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         lay_out.setContentsMargins(0,0,0,0)
         cell_widget.setLayout(lay_out)
         self.tableWidget.setCellWidget(idx, 2, cell_widget)
+
+
+        # Likert score
+        lv = qt.QComboBox()
+        for i in range(6):
+            lv.addItem('-' if i == 0 else i)
+        if 'Likert' in d:
+            item_index = int(d['Likert'])
+        lv.setCurrentIndex(d['Likert'] if 'Likert' in d else 0)
+        self.tableWidget.setCellWidget(idx, 3, lv)
+        lv.currentIndexChanged.connect(lambda index: setLikertScore(d, index))
+
         self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
         cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
-
     
     def confirmAneurysm(self, state, det):
         det['aneurysm']=bool(state)
