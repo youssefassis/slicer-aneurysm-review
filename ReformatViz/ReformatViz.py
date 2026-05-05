@@ -451,8 +451,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         lv = qt.QComboBox()
         for i in range(6):
             lv.addItem('-' if i == 0 else i)
-        if 'Likert' in d:
-            item_index = int(d['Likert'])
         lv.setCurrentIndex(d['Likert'] if 'Likert' in d else 0)
         self.tableWidget.setCellWidget(idx, 3, lv)
         lv.currentIndexChanged.connect(lambda index: setLikertScore(d, index))
