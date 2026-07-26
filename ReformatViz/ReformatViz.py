@@ -1,6 +1,5 @@
-import logging
-import os, json
-from copy import deepcopy
+import os
+import json
 
 import numpy as np
 import math
@@ -66,20 +65,6 @@ def createModel(model, name):
     node.GetDisplayNode().SetVisibility2D(True)
     node.GetDisplayNode().SetSliceIntersectionThickness(2)
     return node
-
-def getSphereCenterAndRadius(markups, startPointIndex):
-    # Create two empty numpy arrays of size 3 to hold the positions of the two points.
-    A, B = np.zeros(3), np.zeros(3)
-    # Get the position of the nth control point (startPointIndex) and store it in A.
-    markups.GetNthControlPointPosition(startPointIndex, A)
-    # Get the position of the (n+1)th control point and store it in B.
-    markups.GetNthControlPointPosition(startPointIndex+1, B)
-    # Calculate the midpoint between the two points.
-    s = (A + B) / 2
-    # Calculate the radius of the sphere using the distance between the two points.
-    R = np.linalg.norm(A - B)/2
-    # Return the center and radius of the sphere as a tuple.
-    return A, B, s, R
 
 def addMissingDetectionInfo(d):
     # assumes at least P1 and P2 are defined
