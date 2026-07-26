@@ -646,7 +646,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def MoveSpheres(self, caller=None, event=None):
         markups : slicer.vtkMRMLMarkupsFiducial = caller
 
-        if self.tmpSphereSource:
+        # PointModifiedEvent still fires after a point is deleted, and reading a control
+        # point that no longer exists leaves the np.empty buffer holding whatever was in that
+        # memory, which then becomes the sphere's centre and radius.
+        if self.tmpSphereSource and markups.GetNumberOfControlPoints() >= 2:
             p1, p2 = np.empty(3), np.empty(3)
             markups.GetNthControlPointPositionWorld(0, p1)
             markups.GetNthControlPointPositionWorld(1, p2)
