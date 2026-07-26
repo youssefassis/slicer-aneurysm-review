@@ -141,6 +141,19 @@ class TestLoad:
         assert scored["aneurysm"] is True
         assert scored["viewAngle"] == 35
 
+    def test_hand_added_detections_load_after_the_detector_hits(self, tmp_path):
+        # An added detection carries confidence 1 because there is no detector score to
+        # record, so sorting on confidence alone promoted it above every real candidate on
+        # reload — the opposite of where the reviewer left it.
+        source = write(tmp_path, {
+            "0": {"P1": [0, 0, 0], "P2": [1, 0, 0], "confidence": 0.9},
+            "1": {"P1": [0, 0, 0], "P2": [2, 0, 0], "confidence": 1, "added": 1},
+            "2": {"P1": [0, 0, 0], "P2": [3, 0, 0], "confidence": 0.4},
+        })
+        loaded = det.load(source)
+        assert [d["confidence"] for d in loaded] == [0.9, 0.4, 1]
+        assert loaded[-1].get("added") == 1
+
     def test_malformed_json_raises_a_valueerror_like_a_format_error(self, tmp_path):
         # The GUI catches ValueError for both, so json's error must stay in that family.
         path = write(tmp_path, '{"a": {"P1": [0,0,0]')

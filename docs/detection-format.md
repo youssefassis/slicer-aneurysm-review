@@ -89,4 +89,8 @@ to you, keep them inside the detection object as an extra field, where they are 
 
 Detections are sorted by `confidence` descending on load, and the table, the saved keys, and
 the Nth control point of the `Ostium`/`Dome`/`Confidences` markups nodes all follow that same
-order. Detections added by hand go to the end of the table regardless of confidence.
+order.
+
+Detections added by hand go to the end of the table regardless of confidence, and stay there
+across a save and reload. They carry `confidence` 1 only because there is no detector score to
+record for them — which is also why the **Confidence (%)** column shows them as `100`.

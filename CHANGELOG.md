@@ -40,6 +40,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - An aneurysm whose dome sat directly below its ostium got the identity as its rotation frame,
   which maps the axis onto `-Z` rather than `+Z`, so the rotation slider turned the view the
   opposite way for those detections alone.
+- Detections the reviewer added by hand jumped to the top of the table after a save and reload,
+  because they carry `confidence` 1; they now stay at the end, where the reviewer left them.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

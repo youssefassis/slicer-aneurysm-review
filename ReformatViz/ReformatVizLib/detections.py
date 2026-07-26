@@ -131,12 +131,17 @@ def load(path):
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     detections = [add_missing_info(d) for d in validate(data)]
-    return sort_by_confidence(detections)
+    return sort_for_review(detections)
 
 
-def sort_by_confidence(detections):
-    """Return ``detections`` ordered most-confident first, as the review table shows them."""
-    return sorted(detections, key=lambda d: d["confidence"], reverse=True)
+def sort_for_review(detections):
+    """Return ``detections`` in the order the review table shows them.
+
+    Most confident first, but detections the reviewer added by hand go last whatever their
+    confidence: they carry ``confidence`` 1 only because there is no detector score to
+    record, and sorting on that alone would promote them above every real candidate.
+    """
+    return sorted(detections, key=lambda d: (d.get("added", 0), -d["confidence"]))
 
 
 def save(path, detections):
