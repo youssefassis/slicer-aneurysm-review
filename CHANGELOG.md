@@ -87,3 +87,6 @@ change for whatever produces those files. See `docs/detection-format.md`.
 ### Removed
 
 - `getSphereCenterAndRadius`, plus the unused `logging` and `copy.deepcopy` imports.
+- The parameter-node scaffolding inherited from the module template. This module keeps no
+  parameter node, so `initializeParameterNode` was an empty `return` and `enter`, `exit` and
+  `onSceneStartClose` were no-ops built around commented-out template code.

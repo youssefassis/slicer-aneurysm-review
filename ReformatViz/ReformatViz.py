@@ -15,7 +15,6 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
 
-tmp_markups_name='P'
 
 def makeScalarOpacity():
     scalarOpacity = vtkPiecewiseFunction()
@@ -61,7 +60,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Called when the user opens the module the first time and the widget is initialized.
         """
         ScriptedLoadableModuleWidget.__init__(self, parent)
-        VTKObservationMixin.__init__(self)  # needed for parameter node observation
+        VTKObservationMixin.__init__(self)  # needed to observe the scene being closed
 
         slicer.app.pythonConsole().clear()
         self.clearScene()
@@ -132,7 +131,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.spheres = []
         self.lines = []
 
-        self.patient_path = ''
         self.selected_detection = -1
         self.detections = []
 
@@ -166,7 +164,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Last, so that a scene closed from the File menu can never land on a half-built
         # widget: the handler reads self.detections and the table.
-        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
 
 
@@ -289,7 +286,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # save before loading
         dir_path = qt.QFileDialog().getExistingDirectory()
         if dir_path:
-            self.patient_path = dir_path
             # load the first volume file
             nii_volume_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".nii.gz")])
             detection_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".json")])
@@ -379,8 +375,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
         cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
 
-    def confirmAneurysm(self, state, det):
-        det['aneurysm']=bool(state)
+    def confirmAneurysm(self, state, detection):
+        detection['aneurysm']=bool(state)
 
     def onRowSelected(self, item):
         self.selected_detection  = item.row() if not isinstance(item, int) else item
@@ -570,8 +566,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def set_volume_translucent(self):
         self.updateScalarOpacity()
 
-    def prepareAnnotationNode(self, name=tmp_markups_name):
-        # if node is None:
+    def prepareAnnotationNode(self, name='P'):
         if self.tmpMark:
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
@@ -580,15 +575,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode",name)
         node.CreateDefaultDisplayNodes()
-        #node = slicer.mrmlScene.GetNodeByID(slicer.modules.markups.logic().AddNewFiducialNode())
-        #node=slicer.mrmlScene.GetNodeByID(slicer.modules.markups.logic().GetActiveListID())
-        #node.SetName(name)
 
-        # Added markup event
         node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.drawAnnotationSpheres)
-        # Removed markup event
-        #node.AddObserver(slicer.vtkMRMLMarkupsNode.MarkupRemovedEvent, self.removeAnnotationNodes)
-        # Markup position modified event
         node.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.MoveSpheres)
 
         self.tmpMark = node
@@ -652,7 +640,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.cancelButton.setEnabled(False)
 
 
-###############################################################""
     def drawAnnotationSpheres(self, caller=None, event=None):
         markups : slicer.vtkMRMLMarkupsFiducialNode = caller
         nb_points = markups.GetNumberOfControlPoints()
@@ -701,7 +688,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-###############################################################""
     def save(self):
         dialog = qt.QFileDialog()
         filename = str(dialog.getSaveFileName(None,"Save detections","","JSON files (*.json)"))
@@ -713,7 +699,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             except OSError as e:
                 slicer.util.errorDisplay(det.describe_save_failure(filename, e))
 
-    ##############################################################################################################
     def reset(self):
         for node in self.spheres:
             slicer.mrmlScene.RemoveNode(node)
@@ -776,37 +761,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.removeObservers()
         self.clearScene()
 
-    def enter(self):
-        """
-        Called each time the user opens this module.
-        """
-        # Make sure parameter node exists and observed
-        self.initializeParameterNode()
-
-    def exit(self):
-        """
-        Called each time the user opens a different module.
-        """
-        # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
-        return
-        # self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-
-    def onSceneStartClose(self, caller, event):
-        """
-        Called just before the scene is closed.
-        """
-        # Parameter node will be reset, do not use it anymore
-        return
-        # self.setParameterNode(None)
-
     def onSceneEndClose(self, caller, event):
         """
         Called just after the scene is closed.
         """
-        # If this module is shown while the scene is closed then recreate a new parameter node immediately
-        if self.parent.isEntered:
-             self.initializeParameterNode()
-
         # The scene has taken every node this widget owned with it, so there is nothing left
         # to remove — but self.detections, the spheres, the lines and the table rows still
         # describe the closed scene, and the reviewer would go on scoring rows whose geometry
@@ -814,15 +772,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # for the whole session rather than per patient.
         self.ensureMarkupsNodes()
         self.forgetSceneState()
-
-    def initializeParameterNode(self):
-        """
-        Ensure parameter node exists and observed.
-        """
-        # Parameter node stores all user choices in parameter values, node selections, etc.
-        # so that when the scene is saved and reloaded, these settings are restored.
-
-        return
 
 
 class ReformatVizTest(ScriptedLoadableModuleTest):

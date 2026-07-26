@@ -96,8 +96,8 @@ method applies the same rule: *show if `i == selected_detection` or `selected_de
 takes the first `vtkMRMLMarkupsROINode`, both of which would latch onto foreign nodes
 otherwise. Removing the wipe means fixing those lookups first.
 
-The widget observes the scene's `StartCloseEvent`/`EndCloseEvent` (registered at the end of
-`setup()`, through the inherited `VTKObservationMixin`), so a scene closed from the File menu
+The widget observes the scene's `EndCloseEvent` (registered at the end of `setup()`, through
+the inherited `VTKObservationMixin`), so a scene closed from the File menu
 while the module is open does not leave its state pointing at removed nodes. `onSceneEndClose`
 recreates the three shared markups nodes and calls `forgetSceneState()`.
 
