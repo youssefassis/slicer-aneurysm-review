@@ -42,6 +42,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
   opposite way for those detections alone.
 - Detections the reviewer added by hand jumped to the top of the table after a save and reload,
   because they carry `confidence` 1; they now stay at the end, where the reviewer left them.
+- A failed save reported nothing to the reviewer; it now shows the same kind of dialog a failed
+  load does, and says the existing file was left unchanged.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

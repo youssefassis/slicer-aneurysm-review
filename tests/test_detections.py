@@ -231,6 +231,14 @@ class TestSave:
         det.save(out, det.load(source))
         assert det.load(out)[0]["note"] == "artère communicante"
 
+    def test_failure_message_names_the_file_and_the_cause(self, tmp_path):
+        target = tmp_path / "absent-directory" / "out.json"
+        with pytest.raises(OSError) as raised:
+            det.save(target, det.load(SAMPLE))
+        message = det.describe_save_failure(target, raised.value)
+        assert "out.json" in message
+        assert "left unchanged" in message
+
     def test_reviewer_verdicts_survive_the_round_trip(self, tmp_path):
         detections = det.load(SAMPLE)
         det.set_likert_score(detections[0], 5)

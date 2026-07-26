@@ -662,7 +662,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         dialog = qt.QFileDialog()
         filename = str(dialog.getSaveFileName(None,"Save detections","","JSON files (*.json)"))
         if filename:
-            det.save(filename, self.detections)
+            # Same treatment as a failed load: an unwritable path or a stale network mount
+            # must reach the reviewer, not just the Python console.
+            try:
+                det.save(filename, self.detections)
+            except OSError as e:
+                slicer.util.errorDisplay(det.describe_save_failure(filename, e))
 
     ##############################################################################################################
     def reset(self):

@@ -170,6 +170,16 @@ def describe_load_failure(path, error):
     return f"No valid detection file found.\n\n{os.path.basename(path)}: {error}"
 
 
+def describe_save_failure(path, error):
+    """Return the message shown to the reviewer when :func:`save` fails.
+
+    The previous file is still intact — see :func:`save` — which is the useful thing to say
+    to someone who has just tried to write over a review they care about.
+    """
+    return (f"Saving the detections failed. The existing file has been left unchanged."
+            f"\n\n{os.path.basename(path)}: {error}")
+
+
 def confidence_percent(d):
     """Return the confidence as the review table displays it."""
     return round(d["confidence"] * 100, 3)
