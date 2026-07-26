@@ -96,12 +96,18 @@ method applies the same rule: *show if `i == selected_detection` or `selected_de
 takes the first `vtkMRMLMarkupsROINode`, both of which would latch onto foreign nodes
 otherwise. Removing the wipe means fixing those lookups first.
 
-The widget does **not** observe scene close, so a scene closed from the File menu while the
-module is open leaves its state pointing at removed nodes. `ensureMarkupsNodes()` repairs the
-three shared markups nodes at the point of use, but `self.spheres`, `self.lines` and the table
-still describe the old scene until **Clean** or the next patient load calls `reset()`. Wiring
-`onSceneEndClose` up to a state reset — the stub is already there, and `VTKObservationMixin` is
-already inherited — is the obvious fix.
+The widget observes the scene's `StartCloseEvent`/`EndCloseEvent` (registered at the end of
+`setup()`, through the inherited `VTKObservationMixin`), so a scene closed from the File menu
+while the module is open does not leave its state pointing at removed nodes. `onSceneEndClose`
+recreates the three shared markups nodes and calls `forgetSceneState()`.
+
+`forgetSceneState()` is the half of `reset()` that touches nothing in the scene: it empties
+`detections`, `spheres`, `lines` and the table, drops the volume references and unselects. The
+split matters because the two callers have opposite obligations — **Clean** and the next patient
+load must remove the nodes themselves, while after a scene close there is nothing left to remove
+and reaching for those nodes is what would go wrong. `cleanup()` drops the observers before its
+own `clearScene()`, so the module's teardown does not run the handler against a widget that is
+being destroyed.
 
 ## Slicer and Qt conventions
 

@@ -56,10 +56,13 @@ change for whatever produces those files. See `docs/detection-format.md`.
   load does, and says the existing file was left unchanged.
 - Pressing **OK** with fewer than two annotation points placed did nothing at all and left
   **Add** greyed out; it now says what is missing.
+- Closing the scene from the File menu left the widget describing the scene that had just been
+  removed: the table still listed the old patient's detections and the reviewer could go on
+  scoring rows whose volume, spheres and lines were gone, until **Clean** or the next patient
+  load. The module now observes scene close and resets its own state to match.
 - Closing the scene from the File menu left the widget holding the three shared markups nodes
   after they had been removed, so ostia, domes and confidence labels silently stopped appearing;
-  they are now recreated when needed. (Spheres and lines are still stale until **Clean** or the
-  next patient load — see the note in `docs/architecture.md`.)
+  they are now recreated when needed.
 - The slice-thickness slider and **Center camera** assumed the Red slice node and a 3D view
   exist, which is not true in a scene that has just been closed, nor in a headless session.
 - The in-Slicer test asserted a slice origin that Slicer cannot honour in a scene with no

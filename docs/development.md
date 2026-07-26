@@ -106,6 +106,10 @@ MOD="$PWD/ReformatViz"
 The process exits non-zero if a test fails, so this is usable as a gate. Note `--testing`:
 without it `errorDisplay`/`warningDisplay` open modal dialogs and the run blocks forever.
 
+The four cases cover the module loading, a detection file becoming scene nodes, the Red slice
+being reformatted onto a selected detection, and the widget resetting itself when the scene is
+closed.
+
 It reads `tests/data/detections_sample.json` from the source tree and skips those cases if
 run from an installed extension where that file is absent. It builds its own small synthetic
 volume, because Slicer will not move a slice in a scene with no background volume — which is

@@ -164,6 +164,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.layout_2.addWidget(self.tableWidget)
         self.ui.CollapsibleButton.setLayout(self.layout_2)
 
+        # Last, so that a scene closed from the File menu can never land on a half-built
+        # widget: the handler reads self.detections and the table.
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
 
     def set_volume_color(self, color=None):
         color = rendering.to_rgb(color if color is not None else self.ui.volumeColor.color)
@@ -712,10 +717,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def reset(self):
         for node in self.spheres:
             slicer.mrmlScene.RemoveNode(node)
-        self.spheres=[]
         for node in self.lines:
             slicer.mrmlScene.RemoveNode(node)
-        self.lines=[]
         self.confidences.RemoveAllControlPoints()
         self.ostia.RemoveAllControlPoints()
         self.domes.RemoveAllControlPoints()
@@ -731,15 +734,26 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 if propertyNode:
                     slicer.mrmlScene.RemoveNode(propertyNode)
             slicer.mrmlScene.RemoveNode(self.volNode)
-        self.volNode : slicer.vtkMRMLScalarVolumeNode = None
-        self.volProp = None
         roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
         for r in roiNode:
             slicer.mrmlScene.RemoveNode(r)
 
         self.removeAnnotationNodes()
 
+        self.forgetSceneState()
+
+    def forgetSceneState(self):
+        """Bring the widget's own state back in line with an empty scene.
+
+        Removes nothing from the scene: this is the tail of `reset()`, and it is also the
+        whole of what a scene closed from the File menu needs, where the nodes have already
+        been removed for us.
+        """
+        self.spheres=[]
+        self.lines=[]
         self.detections=[]
+        self.volNode : slicer.vtkMRMLScalarVolumeNode = None
+        self.volProp = None
 
         self.tableWidget.setRowCount(0)
         self.tableWidget.setCurrentItem(None)
@@ -757,6 +771,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         Called when the application closes and the module widget is destroyed.
         """
+        # Before clearing, so that onSceneEndClose does not run against a widget that is on
+        # its way out.
+        self.removeObservers()
         self.clearScene()
 
     def enter(self):
@@ -789,7 +806,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # If this module is shown while the scene is closed then recreate a new parameter node immediately
         if self.parent.isEntered:
              self.initializeParameterNode()
-        return
+
+        # The scene has taken every node this widget owned with it, so there is nothing left
+        # to remove — but self.detections, the spheres, the lines and the table rows still
+        # describe the closed scene, and the reviewer would go on scoring rows whose geometry
+        # is gone. The three shared markups nodes are recreated because the widget keeps them
+        # for the whole session rather than per patient.
+        self.ensureMarkupsNodes()
+        self.forgetSceneState()
 
     def initializeParameterNode(self):
         """
@@ -805,9 +829,10 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
     """The test `slicer_add_python_unittest` registers, and the module's Self Test button.
 
     This covers only what needs Slicer: that the module loads, that a detection file becomes
-    scene nodes, and that selecting a row reformats the Red slice. The geometry and file
-    format are covered far more thoroughly by the Slicer-free suite in `tests/`, which is
-    where new cases belong unless they genuinely need MRML.
+    scene nodes, that selecting a row reformats the Red slice, and that closing the scene
+    resets the widget. The geometry and file format are covered far more thoroughly by the
+    Slicer-free suite in `tests/`, which is where new cases belong unless they genuinely need
+    MRML.
     """
 
     def setUp(self):
@@ -818,6 +843,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_module_loads()
         self.test_detections_become_scene_nodes()
         self.test_selecting_a_row_aligns_the_red_slice()
+        self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
         slicer.util.selectModule('ReformatViz')
@@ -906,4 +932,39 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             self.assertAlmostEqual(float(sliceY @ widget.aneAxis), 1.0, places=3)
 
         widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_closing_the_scene_resets_the_widget(self):
+        self.delayDisplay('Closing the scene empties the widget state')
+        widget = self._widget()
+        widget.reset()
+
+        sample = self._samplePath()
+        if not os.path.exists(sample):
+            self.delayDisplay(f'Skipped: no sample data at {sample}')
+            return
+
+        widget.volNode = self._addTestVolume()
+        widget.load_detections(sample)
+        widget.create_spheres()
+        for d in widget.detections:
+            widget.add_detection_to_table(d)
+        widget.onRowSelected(0)
+        self.assertEqual(widget.tableWidget.rowCount, 3)
+
+        # What File -> Close Scene does.
+        slicer.mrmlScene.Clear()
+
+        self.assertEqual(widget.detections, [])
+        self.assertEqual(widget.spheres, [])
+        self.assertEqual(widget.lines, [])
+        self.assertEqual(widget.tableWidget.rowCount, 0)
+        self.assertEqual(widget.selected_detection, -1)
+        self.assertIsNone(widget.volNode)
+        self.assertIsNone(widget.volProp)
+        # Usable again straight away: the three session-long markups nodes are back in the
+        # scene, so the next patient's control points have somewhere to go.
+        for markups in (widget.ostia, widget.domes, widget.confidences):
+            self.assertTrue(slicer.mrmlScene.IsNodePresent(markups))
+            self.assertEqual(markups.GetNumberOfControlPoints(), 0)
         self.delayDisplay('Passed')
