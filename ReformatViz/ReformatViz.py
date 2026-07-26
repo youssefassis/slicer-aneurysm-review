@@ -592,28 +592,34 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def validateAnnotation(self):
         markups = self.tmpMark
-        if markups and markups.GetNumberOfControlPoints() == 2:
-            p1, p2 = np.empty(3), np.empty(3)
-            markups.GetNthControlPointPositionWorld(0, p1)
-            markups.GetNthControlPointPositionWorld(1, p2)
-            self.removeAnnotationNodes()
+        if not markups or markups.GetNumberOfControlPoints() != 2:
+            # Otherwise OK looks broken: nothing happens and Add stays greyed out, with no
+            # indication that the ostium and the dome both have to be placed first.
+            slicer.util.warningDisplay("Place two points — the ostium, then the dome — "
+                                       "before pressing OK, or press Cancel to start over.")
+            return
 
-            detection = {"P1": p1.tolist(),
-                        "P2": p2.tolist(),
-                        "aneurysm": 1,
-                        "added": 1
-                        }
-            detection = det.add_missing_info(detection)
-            self.detections.append(detection)
-            self.add_detection_to_table(detection)
-            self.add_detection_to_scene(detection)
-            self.selected_detection = self.tableWidget.rowCount-1
-            self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
-            self.onRowSelected(self.selected_detection)
-            self.updateObjectsDisplay()
-            self.ui.addButton.setEnabled(True)
-            self.ui.okButton.setEnabled(False)
-            self.ui.cancelButton.setEnabled(False)
+        p1, p2 = np.empty(3), np.empty(3)
+        markups.GetNthControlPointPositionWorld(0, p1)
+        markups.GetNthControlPointPositionWorld(1, p2)
+        self.removeAnnotationNodes()
+
+        detection = {"P1": p1.tolist(),
+                    "P2": p2.tolist(),
+                    "aneurysm": 1,
+                    "added": 1
+                    }
+        detection = det.add_missing_info(detection)
+        self.detections.append(detection)
+        self.add_detection_to_table(detection)
+        self.add_detection_to_scene(detection)
+        self.selected_detection = self.tableWidget.rowCount-1
+        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
+        self.onRowSelected(self.selected_detection)
+        self.updateObjectsDisplay()
+        self.ui.addButton.setEnabled(True)
+        self.ui.okButton.setEnabled(False)
+        self.ui.cancelButton.setEnabled(False)
 
 
 ###############################################################""

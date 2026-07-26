@@ -44,6 +44,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
   because they carry `confidence` 1; they now stay at the end, where the reviewer left them.
 - A failed save reported nothing to the reviewer; it now shows the same kind of dialog a failed
   load does, and says the existing file was left unchanged.
+- Pressing **OK** with fewer than two annotation points placed did nothing at all and left
+  **Add** greyed out; it now says what is missing.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.
