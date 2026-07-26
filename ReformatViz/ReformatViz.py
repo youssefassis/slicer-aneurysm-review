@@ -744,3 +744,90 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # so that when the scene is saved and reloaded, these settings are restored.
 
         return
+
+
+class ReformatVizTest(ScriptedLoadableModuleTest):
+    """The test `slicer_add_python_unittest` registers, and the module's Self Test button.
+
+    This covers only what needs Slicer: that the module loads, that a detection file becomes
+    scene nodes, and that selecting a row reformats the Red slice. The geometry and file
+    format are covered far more thoroughly by the Slicer-free suite in `tests/`, which is
+    where new cases belong unless they genuinely need MRML.
+    """
+
+    def setUp(self):
+        slicer.mrmlScene.Clear()
+
+    def runTest(self):
+        self.setUp()
+        self.test_module_loads()
+        self.test_detections_become_scene_nodes()
+        self.test_selecting_a_row_aligns_the_red_slice()
+
+    def _widget(self):
+        slicer.util.selectModule('ReformatViz')
+        return slicer.modules.ReformatVizWidget
+
+    def _samplePath(self):
+        # Ships with the source tree, not with the installed extension.
+        path = os.path.join(os.path.dirname(__file__), '..', 'tests', 'data', 'detections_sample.json')
+        return os.path.normpath(path)
+
+    def test_module_loads(self):
+        self.delayDisplay('Module loads and builds its widget')
+        widget = self._widget()
+        self.assertIsNotNone(widget)
+        self.assertEqual(widget.selected_detection, -1)
+        self.delayDisplay('Passed')
+
+    def test_detections_become_scene_nodes(self):
+        self.delayDisplay('A detection file becomes spheres, lines and markups')
+        widget = self._widget()
+        widget.reset()
+
+        sample = self._samplePath()
+        if not os.path.exists(sample):
+            self.delayDisplay(f'Skipped: no sample data at {sample}')
+            return
+
+        widget.load_detections(sample)
+        widget.create_spheres()
+        self.assertEqual(len(widget.detections), 3)
+        # The index-parallel invariant: one sphere and one line per detection, and one
+        # control point per detection in each of the three markups nodes.
+        self.assertEqual(len(widget.spheres), len(widget.detections))
+        self.assertEqual(len(widget.lines), len(widget.detections))
+        for markups in (widget.ostia, widget.domes, widget.confidences):
+            self.assertEqual(markups.GetNumberOfControlPoints(), len(widget.detections))
+
+        widget.reset()
+        self.assertEqual(widget.spheres, [])
+        self.assertEqual(widget.ostia.GetNumberOfControlPoints(), 0)
+        self.delayDisplay('Passed')
+
+    def test_selecting_a_row_aligns_the_red_slice(self):
+        self.delayDisplay('Selecting a detection puts its axis in the Red slice')
+        widget = self._widget()
+        widget.reset()
+
+        sample = self._samplePath()
+        if not os.path.exists(sample):
+            self.delayDisplay(f'Skipped: no sample data at {sample}')
+            return
+
+        widget.load_detections(sample)
+        widget.create_spheres()
+        widget.onRowSelected(0)
+
+        sliceNode = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        m = sliceNode.GetSliceToRAS()
+        normal = np.array(m.MultiplyDoublePoint([0, 0, 1, 0]))[:3]
+        origin = np.array(m.MultiplyDoublePoint([0, 0, 0, 1]))[:3]
+
+        # The invariant the reformatting exists for: the slice contains the aneurysm axis
+        # and is centred on it.
+        self.assertAlmostEqual(float(normal @ widget.aneAxis), 0.0, places=6)
+        np.testing.assert_allclose(origin, widget.aneOrigin, atol=1e-6)
+
+        widget.reset()
+        self.delayDisplay('Passed')
