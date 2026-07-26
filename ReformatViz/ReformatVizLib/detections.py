@@ -9,6 +9,7 @@ The file format is the contract with whatever produces the detections; it is doc
 ``docs/detection-format.md``. Changing it is a breaking change for those producers.
 """
 
+import contextlib
 import json
 import math
 import os
@@ -127,7 +128,7 @@ def load(path):
     for malformed content, and ``OSError`` if the file cannot be read. Callers in the GUI
     turn those into a dialog; the message is meant to be shown to the reviewer.
     """
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     detections = [add_missing_info(d) for d in validate(data)]
     return sort_by_confidence(detections)
@@ -143,9 +144,20 @@ def save(path, detections):
 
     Note this is *not* the shape that was read: input keys are the producer's names, output
     keys are ``"0"``, ``"1"``, ... in table order. See ``docs/detection-format.md``.
+
+    The write goes to a temporary file in the same directory and is renamed into place, so a
+    failure part-way through leaves the previous file intact: the reviewer normally saves over
+    the file they loaded, and a truncated one would cost them the whole session's verdicts.
     """
-    with open(path, "w") as f:
-        json.dump({str(i): d for i, d in enumerate(detections)}, f, indent=2)
+    temporary = f"{os.fspath(path)}.tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8") as f:
+            json.dump({str(i): d for i, d in enumerate(detections)}, f, indent=2)
+        os.replace(temporary, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.remove(temporary)
+        raise
 
 
 def describe_load_failure(path, error):

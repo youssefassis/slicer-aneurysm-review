@@ -32,6 +32,11 @@ change for whatever produces those files. See `docs/detection-format.md`.
   validation and then raised an uncaught `TypeError`, leaving the reviewer with a console
   traceback and an empty table instead of the dialog naming the entry. Values are now checked,
   not just key presence — see `docs/detection-format.md`.
+- Saving truncated the target file when serialisation failed part-way through. Since the
+  reviewer normally saves over the file they loaded, that cost them the session's verdicts;
+  the write now goes to a temporary file and is renamed into place.
+- Detection files are read and written as UTF-8 instead of the platform's locale encoding, so a
+  file carrying a non-ASCII producer field no longer fails to load on Windows.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

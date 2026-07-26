@@ -191,6 +191,33 @@ class TestSave:
         assert saved["modelVersion"] == "v3"
         assert saved["seriesUID"] == "1.2.840"
 
+    def test_a_failed_save_leaves_the_existing_file_untouched(self, tmp_path):
+        # The reviewer's natural move is to save over the file they loaded, so a write that
+        # fails part-way through would destroy the previous session's verdicts.
+        out = tmp_path / "out.json"
+        det.save(out, det.load(SAMPLE))
+        before = out.read_bytes()
+
+        unserialisable = det.load(SAMPLE)
+        unserialisable[0]["producerBlob"] = {1, 2}  # a set is not JSON
+        with pytest.raises(TypeError):
+            det.save(out, unserialisable)
+
+        assert out.read_bytes() == before
+        assert list(tmp_path.iterdir()) == [out], "the temporary file must not be left behind"
+
+    def test_reads_a_utf8_file_and_round_trips_its_text(self, tmp_path):
+        # JSON is UTF-8 by definition, but open() without an encoding uses the platform
+        # locale, so an accented producer field failed to load on a cp1252 Windows machine.
+        source = tmp_path / "utf8.json"
+        source.write_bytes(json.dumps(
+            {"a": {"P1": [0, 0, 0], "P2": [2, 0, 0], "note": "artère communicante"}},
+            ensure_ascii=False,
+        ).encode("utf-8"))
+        out = tmp_path / "out.json"
+        det.save(out, det.load(source))
+        assert det.load(out)[0]["note"] == "artère communicante"
+
     def test_reviewer_verdicts_survive_the_round_trip(self, tmp_path):
         detections = det.load(SAMPLE)
         det.set_likert_score(detections[0], 5)
