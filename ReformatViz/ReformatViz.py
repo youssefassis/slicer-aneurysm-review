@@ -39,6 +39,10 @@ def rotate2Z(v):
 
     return np.array([R0,R1,vn],dtype=np.float64)
 
+def toRGB(color):
+    """Convert a QColor to the 0-1 RGB triplet that VTK/MRML display nodes expect."""
+    return (color.red()/255, color.green()/255, color.blue()/255)
+
 def makeScalarOpacity():
     scalarOpacity = vtkPiecewiseFunction()
     scalarOpacity.AllowDuplicateScalarsOn()
@@ -218,7 +222,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def set_volume_color(self, color=None):
-        color = [color.red()/255, color.green()/255, color.blue()/255] if color is not None else [self.ui.volumeColor.color.red()/255, self.ui.volumeColor.color.green()/255, self.ui.volumeColor.color.blue()/255] 
+        color = toRGB(color if color is not None else self.ui.volumeColor.color)
         if self.volNode:
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
             rangeCT = [0] * 2
@@ -520,7 +524,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.spheres[i].GetDisplayNode().SetVisibility(value)
 
     def set_spheres_color(self, color=None):
-        color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.SpheresColorPicker.color.red()/255, self.ui.SpheresColorPicker.color.green()/255, self.ui.SpheresColorPicker.color.blue()/255)
+        color = toRGB(color if color is not None else self.ui.SpheresColorPicker.color)
         for i in range(len(self.detections)):
             self.spheres[i].GetDisplayNode().SetColor(color)
     
@@ -529,7 +533,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.spheres[i].GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
             
     def set_lines_color(self, color=None):
-        color = (color.red()/255, color.green()/255, color.blue()/255) if color is not None else (self.ui.LinesColorPicker.color.red()/255, self.ui.LinesColorPicker.color.green()/255, self.ui.LinesColorPicker.color.blue()/255)
+        color = toRGB(color if color is not None else self.ui.LinesColorPicker.color)
         for i in range(len(self.detections)):
             self.lines[i].GetDisplayNode().SetColor(color)
 
@@ -540,9 +544,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_confidence_color(self, color=None):
         if self.confidences.GetDisplayNode():
-            r, g, b = self.ui.ConfidenceColorPicker.color.red()/255, self.ui.ConfidenceColorPicker.color.green()/255, self.ui.ConfidenceColorPicker.color.blue()/255
-            self.confidences.GetDisplayNode().SetColor(r,g,b)
-            self.confidences.GetDisplayNode().SetSelectedColor(r,g,b)
+            color = toRGB(color if color is not None else self.ui.ConfidenceColorPicker.color)
+            self.confidences.GetDisplayNode().SetColor(color)
+            self.confidences.GetDisplayNode().SetSelectedColor(color)
 
     def set_confidence_visibility(self):
         if self.confidences:
@@ -552,11 +556,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_markups_color(self, color=None):
         if self.ostia.GetDisplayNode() and self.domes.GetDisplayNode():
-            r, g, b = self.ui.MarkupsColorPicker.color.red()/255, self.ui.MarkupsColorPicker.color.green()/255, self.ui.MarkupsColorPicker.color.blue()/255
-            self.ostia.GetDisplayNode().SetColor(r,g,b)
-            self.ostia.GetDisplayNode().SetSelectedColor(r,g,b)
-            self.domes.GetDisplayNode().SetColor(r,g,g)
-            self.domes.GetDisplayNode().SetSelectedColor(r,g,b)
+            color = toRGB(color if color is not None else self.ui.MarkupsColorPicker.color)
+            for markups in (self.ostia, self.domes):
+                markups.GetDisplayNode().SetColor(color)
+                markups.GetDisplayNode().SetSelectedColor(color)
     
     def set_markups_visibility(self):
         for i in range(len(self.detections)):
@@ -727,7 +730,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tmpSphere=createModel(self.tmpSphereSource, name=f'Tmp Sphere')
 
         self.tmpSphere.GetDisplayNode().SetVisibility(True)
-        color = (self.ui.SpheresColorPicker.color.red()/255, self.ui.SpheresColorPicker.color.green()/255, self.ui.SpheresColorPicker.color.blue()/255)
+        color = toRGB(self.ui.SpheresColorPicker.color)
         self.tmpSphere.GetDisplayNode().SetColor(color)
         self.tmpSphere.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
 
