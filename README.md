@@ -1,92 +1,84 @@
-# Slicer-Reformat-Aneurysm
+# ReformatViz — aneurysm review for 3D Slicer
 
+A [3D Slicer](https://www.slicer.org/) extension for reviewing candidate intracranial
+aneurysms on head angiography. It takes a volume plus a JSON file of candidate detections
+and, for each candidate, reformats the slice view so it **always contains the aneurysm
+axis** — the reviewer spins the view around that axis instead of hunting for an oblique
+plane by hand, then records a verdict and a Likert score.
 
+The module appears in Slicer as **Reformat Aneurysm**, under the *Aneurysms* category.
 
-## Getting started
+## Install
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+The module is plain Python; no build step is needed to use it.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+1. Clone this repository.
+2. In Slicer: *Edit → Application Settings → Modules*, add the `ReformatViz/` directory
+   (the inner one, containing `ReformatViz.py`) to **Additional module paths**.
+3. Restart Slicer. The module is under *Aneurysms → Reformat Aneurysm*.
 
-## Add your files
+Or, without changing settings:
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+```bash
+# macOS — adjust for your Slicer install
+/Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths ReformatViz
 ```
-cd existing_repo
-git remote add origin https://gitlab.inria.fr/yassis/slicer-reformat-aneurysm.git
-git branch -M main
-git push -uf origin main
+
+**Supported Slicer version:** _not yet pinned_ — see `docs/development.md`. The module drives
+the `Reformat`, `Volume Rendering`, `Markups` and `Models` modules, all of which ship with
+Slicer, so there are no extension dependencies.
+
+## Use
+
+1. **Select** a directory (under *Inputs*). The first `*.nii.gz` in it is loaded as the volume
+   and the first `*.json` as the detections. Opening the module clears the scene first.
+2. Click a row in the table to review that candidate. The slice view reformats to contain
+   its axis; **Angle** spins the view around it; **Thickness** sets the slab thickness for
+   the maximum-intensity projection.
+3. Tick **Aneurysm ?** and set a **Likert** score per candidate. **Add** places two points
+   (ostium then dome) to record an aneurysm the detector missed.
+4. **Save** writes the annotated detections to a JSON file of your choosing.
+
+The full workflow and what each display control does is in
+[`docs/user-guide.md`](docs/user-guide.md). The input and output file format is specified in
+[`docs/detection-format.md`](docs/detection-format.md) — read that if you generate the
+detection files.
+
+## Develop
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest      # the Slicer-free core: fast, no Slicer needed
+ruff check .          # also enforces the Slicer-free import boundary
 ```
 
-## Integrate with your tools
+The code is split so most of it can be tested without launching Slicer:
+`ReformatViz/ReformatVizLib/` holds the geometry, the detection file format and the display
+maths, and may not import `slicer`, `vtk` or `qt`; `ReformatViz/ReformatViz.py` holds the
+Slicer and Qt glue. See [`docs/architecture.md`](docs/architecture.md) and
+[`docs/development.md`](docs/development.md).
 
-- [ ] [Set up project integrations](https://gitlab.inria.fr/yassis/slicer-reformat-aneurysm/-/settings/integrations)
+## Citing
 
-## Collaborate with your team
+If this software contributes to a publication, please cite it — see
+[`CITATION.cff`](CITATION.cff).
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+## Authors
 
-## Test and Deploy
+Developed by Youssef Assis, maintained by Erwan Kerrien
+([Loria](https://www.loria.fr/), Université de Lorraine, CNRS, Inria).
 
-Use the built-in continuous integration in GitLab.
+## Licence
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+[Apache License 2.0](LICENSE).
 
-***
+## Before a first release
 
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- **Confirm the copyright holder.** `CITATION.cff` and the source headers credit the authors
+  rather than a legal entity. Loria is a joint unit, so the holder is likely Inria, CNRS
+  and/or Université de Lorraine — confirm with the lab, then set it consistently.
+- **Pin the supported Slicer version** here and in CI.
+- **Replace the placeholder extension metadata** in the top-level `CMakeLists.txt`: it still
+  carries the wizard's "John Doe (AnyWare Corp.)" contributor and `example.com` URLs.
+- **Add a real screenshot.** `ReformatViz.png` is still the extension wizard's placeholder
+  icon, not a picture of the module.

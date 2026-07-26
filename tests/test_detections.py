@@ -133,6 +133,16 @@ class TestSave:
         det.save(out, original)
         assert det.load(out) == original
 
+    def test_unknown_producer_fields_are_preserved(self, tmp_path):
+        # Documented as a guarantee: a producer can carry its own metadata through a review.
+        source = write(tmp_path, {"a": {"P1": [0, 0, 0], "P2": [2, 0, 0],
+                                        "modelVersion": "v3", "seriesUID": "1.2.840"}})
+        out = tmp_path / "out.json"
+        det.save(out, det.load(source))
+        saved = json.loads(out.read_text())["0"]
+        assert saved["modelVersion"] == "v3"
+        assert saved["seriesUID"] == "1.2.840"
+
     def test_reviewer_verdicts_survive_the_round_trip(self, tmp_path):
         detections = det.load(SAMPLE)
         det.set_likert_score(detections[0], 5)
