@@ -210,10 +210,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if (not self.ui.cropBox.checked) or (not self.volNode):
             if len(roiNode)>0:
                 self.ui.cropVisBox.setChecked(False)
-                displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
-                if displayNode:
-                    displayNode.SetCroppingEnabled(0)
-                    # print("turn off ROI")
+                # This branch is also the "no volume loaded" one, and the lookup needs a
+                # volume node to search from.
+                if self.volNode:
+                    displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+                    if displayNode:
+                        displayNode.SetCroppingEnabled(0)
         else:
             self.ui.cropVisBox.setChecked(True)
             # print("turn on ROI")
