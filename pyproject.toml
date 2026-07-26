@@ -1,0 +1,64 @@
+# Tooling configuration for the Slicer-free part of this project.
+#
+# This file deliberately declares NO runtime dependencies and NO build backend.
+# 3D Slicer ships its own Python interpreter with numpy, VTK, Qt and CTK already
+# inside it; extensions are loaded from disk by Slicer, never pip-installed. So a
+# dependency pin here would be fiction — reproducibility comes from pinning the
+# Slicer version (see docs/development.md), not from pinning Python packages.
+#
+# What this file does govern: the linter, the test runner, and the import boundary
+# that keeps ReformatVizLib testable outside Slicer.
+
+[project]
+name = "reformatviz"
+version = "0.1.0"
+description = "Oblique reformatting for intracranial aneurysm review, as a 3D Slicer extension"
+readme = "README.md"
+license = "Apache-2.0"
+# CONFIRM THIS against the Slicer release you target: run `slicer.app.pythonVersion`
+# in Slicer's Python console and set the floor to that. ReformatVizLib must stay
+# importable by Slicer's interpreter, which is older than a typical dev machine's.
+requires-python = ">=3.9"
+
+# Only needed to run the tests and linter outside Slicer. Inside Slicer, numpy is
+# already provided. Install with:  pip install -r requirements-dev.txt
+[project.optional-dependencies]
+dev = ["numpy", "pytest", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# ReformatVizLib is imported from where Slicer keeps it rather than installed, so the
+# tests see the same layout Slicer does.
+pythonpath = ["ReformatViz"]
+addopts = "--strict-markers -q"
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["LICENSE"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # import sorting
+  "B",        # bugbear
+  "UP",       # pyupgrade
+  "SIM",      # simplify
+  "RUF",      # ruff-specific
+  "TID",      # tidy imports — enforces the boundary below
+]
+
+# The boundary that makes this project testable: ReformatVizLib must stay importable
+# without Slicer. Modules that legitimately drive Slicer are exempted below.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"slicer".msg = "ReformatVizLib must stay Slicer-free so it can be tested without launching Slicer. Put Slicer/MRML code in ReformatViz.py instead."
+"vtk".msg = "ReformatVizLib must stay VTK-free; keep VTK objects on the ReformatViz.py side of the boundary."
+"qt".msg = "ReformatVizLib must stay Qt-free; pass plain values in from ReformatViz.py instead."
+"ctk".msg = "ReformatVizLib must stay Qt-free; pass plain values in from ReformatViz.py instead."
+
+[tool.ruff.lint.per-file-ignores]
+# The Slicer module itself is glue code: it must import slicer/vtk/qt, the
+# ScriptedLoadableModule star-import is the documented Slicer pattern, and Qt slot
+# names follow Qt's camelCase rather than PEP 8.
+"ReformatViz/ReformatViz.py" = ["TID251", "F403", "F405", "E501"]
+"ReformatViz/Testing/Python/*" = ["TID251", "F403", "F405"]

@@ -1,0 +1,9 @@
+# Tools for working on the Slicer-free part of the project (tests + linter).
+# NOT the runtime environment: Slicer supplies numpy/VTK/Qt to the extension itself.
+# numpy is listed only so `pytest tests/` can run outside Slicer.
+#
+# Pins are exact so CI and a developer machine agree. Bump deliberately.
+# These target the developer machine's Python (3.11+), not Slicer's interpreter.
+numpy==2.4.6
+pytest==9.1.1
+ruff==0.16.0
