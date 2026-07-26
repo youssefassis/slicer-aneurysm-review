@@ -231,10 +231,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             else:
                 m=vtkmodules.vtkCommonMath.vtkMatrix4x4()
                 self.volNode.GetIJKToRASMatrix(m)
-                extent=geometry.volume_extent(slicer.util.arrayFromVTKMatrix(m),
-                                              self.volNode.GetImageData().GetDimensions())
-                roiNode.SetCenter((0,0,0))
-                roiNode.SetSize(extent.tolist())
+                center,size=geometry.volume_bounds(slicer.util.arrayFromVTKMatrix(m),
+                                                   self.volNode.GetImageData().GetDimensions())
+                roiNode.SetCenter(center.tolist())
+                roiNode.SetSize(size.tolist())
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
             if displayNode:
                 displayNode.SetCroppingEnabled(True)

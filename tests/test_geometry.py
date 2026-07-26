@@ -143,20 +143,69 @@ class TestCameraPosition:
         assert geo.camera_position([1, 2, 3], [0, 1, 0], 0) == pytest.approx([1, 2, 3])
 
 
-class TestVolumeExtent:
+def bounds_from_corners(ijk_to_ras, dimensions):
+    """Brute-force ``(center, size)`` from the eight corners of the voxel box."""
+    m = np.asarray(ijk_to_ras, dtype=np.float64)
+    x, y, z = dimensions
+    corners = np.array([[i, j, k, 1.0]
+                        for i in (0.0, float(x))
+                        for j in (0.0, float(y))
+                        for k in (0.0, float(z))])
+    ras = (m @ corners.T).T[:, :3]
+    low, high = ras.min(axis=0), ras.max(axis=0)
+    return (low + high) / 2, high - low
+
+
+def rotation_about_z(degrees):
+    c, s = math.cos(math.radians(degrees)), math.sin(math.radians(degrees))
+    m = np.eye(4)
+    m[:2, :2] = [[c, -s], [s, c]]
+    return m
+
+
+class TestVolumeBounds:
     def test_isotropic_millimetre_volume(self):
-        assert geo.volume_extent(np.eye(4), (256, 256, 100)) == pytest.approx([256, 256, 100])
+        center, size = geo.volume_bounds(np.eye(4), (256, 256, 100))
+        assert size == pytest.approx([256, 256, 100])
+        assert center == pytest.approx([128, 128, 50])
 
     def test_accounts_for_anisotropic_spacing(self):
         ijk_to_ras = np.diag([0.5, 0.5, 2.0, 1.0])
-        assert geo.volume_extent(ijk_to_ras, (100, 100, 50)) == pytest.approx([50, 50, 100])
+        _, size = geo.volume_bounds(ijk_to_ras, (100, 100, 50))
+        assert size == pytest.approx([50, 50, 100])
 
-    def test_extent_is_positive_whatever_the_axis_directions(self):
+    def test_size_is_positive_whatever_the_axis_directions(self):
         # LPS-to-RAS flips put negative entries on the diagonal; a ROI size must not be negative.
         ijk_to_ras = np.diag([-0.4, -0.4, 0.8, 1.0])
-        assert geo.volume_extent(ijk_to_ras, (512, 512, 200)) == pytest.approx([204.8, 204.8, 160])
+        _, size = geo.volume_bounds(ijk_to_ras, (512, 512, 200))
+        assert size == pytest.approx([204.8, 204.8, 160])
 
-    def test_translation_does_not_change_the_size(self):
+    def test_translation_moves_the_centre_and_leaves_the_size_alone(self):
         m = np.eye(4)
         m[:3, 3] = [-120, 40, 7]
-        assert geo.volume_extent(m, (64, 64, 64)) == pytest.approx([64, 64, 64])
+        center, size = geo.volume_bounds(m, (64, 64, 64))
+        assert size == pytest.approx([64, 64, 64])
+        assert center == pytest.approx([-88, 72, 39])
+
+    @pytest.mark.parametrize("angle", [20, 45, -37.5])
+    def test_a_tilted_volume_is_not_shrunk(self, angle):
+        # A gantry-tilted head CTA. The size must stay the bounding box of the tilted voxel
+        # box; anything smaller crops the volume rendering without telling the reviewer.
+        m = rotation_about_z(angle) @ np.diag([0.4, 0.4, 0.5, 1.0])
+        dims = (512, 512, 300)
+        center, size = geo.volume_bounds(m, dims)
+        expected_center, expected_size = bounds_from_corners(m, dims)
+        assert size == pytest.approx(expected_size)
+        assert center == pytest.approx(expected_center)
+
+    def test_matches_the_corner_bounding_box_for_an_oblique_matrix(self):
+        # Rotation, anisotropic spacing and an off-centre origin at once — the general case
+        # the closed form has to agree with.
+        m = np.eye(4)
+        m[:3, :3] = geo.rotate2Z([1.0, 2.0, 3.0]) @ np.diag([0.35, 0.35, 0.6])
+        m[:3, 3] = [-95.0, 12.5, 60.0]
+        dims = (320, 320, 180)
+        center, size = geo.volume_bounds(m, dims)
+        expected_center, expected_size = bounds_from_corners(m, dims)
+        assert size == pytest.approx(expected_size)
+        assert center == pytest.approx(expected_center)

@@ -22,6 +22,9 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- The crop ROI was sized from the volume's corner-to-corner diagonal and centred on the world
+  origin, so any tilted or off-centre volume was silently clipped: a 20° gantry tilt lost half
+  the field of view, and a 45° rotation collapsed the ROI to zero width.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

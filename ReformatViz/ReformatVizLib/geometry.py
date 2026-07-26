@@ -92,13 +92,16 @@ def camera_position(origin, normal, distance):
     return np.asarray(origin, dtype=np.float64) - distance * np.asarray(normal, dtype=np.float64)
 
 
-def volume_extent(ijk_to_ras, dimensions):
-    """Return the RAS side lengths of a volume with the given IJK->RAS matrix and dimensions.
+def volume_bounds(ijk_to_ras, dimensions):
+    """Return ``(center, size)`` of the RAS box enclosing a whole volume.
 
-    ``ijk_to_ras`` is a 4x4 array-like. Used to size the crop ROI around a whole volume.
+    ``ijk_to_ras`` is a 4x4 array-like. Used to place and size the crop ROI, which is
+    axis-aligned in RAS, so ``size`` is the bounding box of the voxel box: a tilted volume
+    needs a *larger* ROI than its own side lengths, not a smaller one. Taking the diagonal
+    corner-to-corner difference instead would collapse the ROI as the volume tilts.
     """
     m = np.asarray(ijk_to_ras, dtype=np.float64)
-    x, y, z = dimensions
-    pmin = m @ np.array([0.0, 0.0, 0.0, 1.0])
-    pmax = m @ np.array([float(x), float(y), float(z), 1.0])
-    return np.abs(pmin[:3] - pmax[:3])
+    dims = np.asarray(dimensions, dtype=np.float64)
+    center = (m @ np.append(dims / 2.0, 1.0))[:3]
+    size = np.abs(m[:3, :3]) @ dims
+    return center, size
