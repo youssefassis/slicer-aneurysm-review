@@ -41,12 +41,17 @@ tests:
 #
 # slicer-tests:
 #   stage: check
-#   image: <a pinned Slicer image for the version this extension targets>
+#   image: <a pinned Slicer image; development runs against Slicer 5.12.3>
 #   script:
-#     - xvfb-run -a Slicer --no-splash --testing --python-code
-#       "slicer.util.selectModule('ReformatViz'); slicer.modules.ReformatVizWidget.parent.moduleTest().runTest()"
+#     - xvfb-run -a Slicer --no-splash --testing --additional-module-paths "$CI_PROJECT_DIR/ReformatViz"
+#       --python-code "import slicer.testing;
+#       slicer.testing.runUnitTest(['$CI_PROJECT_DIR/ReformatViz'], 'ReformatViz.ReformatVizTest');
+#       slicer.util.exit(0)"
 #   allow_failure: true
 #
+# That invocation is the one ctest uses, and it exits non-zero on failure. It was verified
+# against Slicer 5.12.3 locally; the earlier `moduleTest()` form named here did not exist.
+# --testing is required, or a failure dialog blocks the job until it times out.
+#
 # Pin the image to the same Slicer version README names as supported, so a Slicer release
-# cannot change what this pipeline means. Confirm the exact invocation against that image
-# before enabling.
+# cannot change what this pipeline means.

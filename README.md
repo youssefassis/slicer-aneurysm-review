@@ -24,9 +24,11 @@ Or, without changing settings:
 /Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths ReformatViz
 ```
 
-**Supported Slicer version:** _not yet pinned_ — see `docs/development.md`. The module drives
-the `Reformat`, `Volume Rendering`, `Markups` and `Models` modules, all of which ship with
-Slicer, so there are no extension dependencies.
+**Slicer version:** developed and tested against **Slicer 5.12.3** (which ships Python 3.12.10,
+numpy 2.4.6, VTK 9.6.2). Whether that is the version the lab commits to supporting is still to
+be decided — see `docs/development.md`. The module drives the `Reformat`, `Volume Rendering`,
+`Markups` and `Models` modules, all of which ship with Slicer, so there are no extension
+dependencies.
 
 ## Use
 
@@ -77,7 +79,8 @@ Developed by Youssef Assis, maintained by Erwan Kerrien
 - **Confirm the copyright holder.** `CITATION.cff` and the source headers credit the authors
   rather than a legal entity. Loria is a joint unit, so the holder is likely Inria, CNRS
   and/or Université de Lorraine — confirm with the lab, then set it consistently.
-- **Pin the supported Slicer version** here and in CI.
+- **Decide the supported Slicer version.** The code is developed and tested against 5.12.3;
+  confirm that is what the lab reviews with, then pin the same version in CI.
 - **Replace the placeholder extension metadata** in the top-level `CMakeLists.txt`: it still
   carries the wizard's "John Doe (AnyWare Corp.)" contributor and `example.com` URLs.
 - **Add a real screenshot.** `ReformatViz.png` is still the extension wizard's placeholder

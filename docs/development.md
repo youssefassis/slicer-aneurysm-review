@@ -9,6 +9,24 @@ This is the thing to internalise before anything else.
 | Runs | the module, in the GUI | `pytest`, `ruff` |
 | Provides | numpy, VTK, Qt, CTK, `slicer` | whatever `requirements-dev.txt` pins |
 | Managed by | the Slicer installer | you |
+| Verified as | 3.12.10, numpy 2.4.6, VTK 9.6.2 (Slicer 5.12.3) | 3.11, numpy 2.4.6 |
+
+Slicer's interpreter here is **newer** than a typical dev machine's, not older. Check any
+install with:
+
+```bash
+/Applications/Slicer.app/Contents/bin/PythonSlicer -c \
+  "import sys, numpy, vtk; print(sys.version, numpy.__version__, vtk.vtkVersion.GetVTKVersion())"
+```
+
+`requirements-dev.txt` pins numpy to the same version Slicer ships, so the tests exercise the
+array behaviour the module will actually meet. To check the core against Slicer's own
+interpreter rather than yours:
+
+```bash
+/Applications/Slicer.app/Contents/bin/PythonSlicer -c \
+  "import sys; sys.path.insert(0,'ReformatViz'); import ReformatVizLib.geometry"
+```
 
 You do **not** pip-install into Slicer. Extensions are loaded from disk, and Slicer supplies
 their dependencies. That is why `pyproject.toml` declares no runtime dependencies and no
@@ -18,11 +36,12 @@ running the tests and linter outside Slicer.
 It also means **reproducibility comes from pinning the Slicer version**, not from pinning
 Python packages.
 
-> **Pin the Slicer version.** The supported version is not yet decided. Pick the release the
-> lab actually reviews with, record it in `README.md`, and pin the same version in the
-> commented `slicer-tests` job in `.gitlab-ci.yml`. Check its interpreter with
-> `slicer.app.pythonVersion` in the Slicer Python console and set `requires-python` in
-> `pyproject.toml` to match — it is likely older than your machine's Python.
+> **Pin the Slicer version.** Development and the in-Slicer test currently run against
+> **Slicer 5.12.3** (revision 34627), which is what `README.md` names. What is still a
+> decision rather than a fact: whether that is the version the lab commits to supporting, and
+> therefore what to pin in the commented `slicer-tests` job in `.gitlab-ci.yml`. Pick the
+> release the lab actually reviews with; if it is not 5.12.x, re-check the interpreter and
+> `requires-python`, because Slicer's Python moves between releases.
 
 ## The fast loop
 
@@ -74,15 +93,23 @@ w.aneAxis, w.aneOrigin
 ### The in-Slicer test
 
 `ReformatVizTest` in `ReformatViz.py` covers what genuinely needs MRML. Run it from the
-module's **Reload and Test** button, or:
+module's **Reload and Test** button, or from the command line the same way `ctest` does —
+`slicer.testing.runUnitTest`, which runs each `test_*` method with a cleared scene:
 
 ```bash
-Slicer --additional-module-paths ReformatViz --python-code \
-  "slicer.util.selectModule('ReformatViz'); slicer.modules.ReformatVizWidget.parent.moduleTest().runTest()"
+MOD="$PWD/ReformatViz"
+/Applications/Slicer.app/Contents/MacOS/Slicer --no-splash --testing \
+  --additional-module-paths "$MOD" --python-code \
+  "import slicer.testing; slicer.testing.runUnitTest(['$MOD'], 'ReformatViz.ReformatVizTest'); slicer.util.exit(0)"
 ```
 
+The process exits non-zero if a test fails, so this is usable as a gate. Note `--testing`:
+without it `errorDisplay`/`warningDisplay` open modal dialogs and the run blocks forever.
+
 It reads `tests/data/detections_sample.json` from the source tree and skips those cases if
-run from an installed extension where that file is absent. Keep it thin — new cases belong in
+run from an installed extension where that file is absent. It builds its own small synthetic
+volume, because Slicer will not move a slice in a scene with no background volume — which is
+what made the original version of this test unpassable. Keep it thin — new cases belong in
 `tests/` unless they need a scene.
 
 ## Building the packaged extension

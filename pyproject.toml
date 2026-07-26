@@ -15,10 +15,11 @@ version = "0.1.0"
 description = "Oblique reformatting for intracranial aneurysm review, as a 3D Slicer extension"
 readme = "README.md"
 license = "Apache-2.0"
-# CONFIRM THIS against the Slicer release you target: run `slicer.app.pythonVersion`
-# in Slicer's Python console and set the floor to that. ReformatVizLib must stay
-# importable by Slicer's interpreter, which is older than a typical dev machine's.
-requires-python = ">=3.9"
+# The floor is the oldest interpreter this code is actually run on, which is CI's
+# python:3.11-slim — not Slicer's, which is *newer* here (Slicer 5.12.3 ships Python
+# 3.12.10). ReformatVizLib has to import cleanly on both; it is checked against 3.12.10
+# with `PythonSlicer` and against 3.11 in CI. Revisit if either end moves.
+requires-python = ">=3.11"
 
 # Only needed to run the tests and linter outside Slicer. Inside Slicer, numpy is
 # already provided. Install with:  pip install -r requirements-dev.txt

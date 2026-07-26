@@ -4,6 +4,11 @@
 #
 # Pins are exact so CI and a developer machine agree. Bump deliberately.
 # These target the developer machine's Python (3.11+), not Slicer's interpreter.
+#
+# numpy is deliberately pinned to the version Slicer 5.12.3 ships (2.4.6), so the tests see
+# the same array behaviour the module meets at runtime. If the supported Slicer version
+# changes, re-check it with:
+#   /Applications/Slicer.app/Contents/bin/PythonSlicer -c "import numpy; print(numpy.__version__)"
 numpy==2.4.6
 pytest==9.1.1
 ruff==0.16.0
