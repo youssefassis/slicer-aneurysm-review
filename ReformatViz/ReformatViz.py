@@ -107,7 +107,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Save/Unselect/Reset
         self.ui.saveButton.clicked.connect(self.save)
-        self.ui.unselectButton.connect('clicked(bool)', self.unselectAllRows)
+        # The lambda swallows clicked's bool argument, which would otherwise bind to
+        # reset_view: the button always emits False, so connecting the slot directly meant
+        # unselecting never reset the view.
+        self.ui.unselectButton.connect('clicked(bool)', lambda *_: self.unselectAllRows())
         self.ui.cleanButton.connect('clicked(bool)', self.reset)
 
         # slices visibility
