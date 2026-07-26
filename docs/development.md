@@ -143,3 +143,7 @@ out.
   `docs/detection-format.md`, and treat it as breaking for whatever writes those files.
 - `ReformatVizLib` is snake_case (plain Python); the widget keeps Qt's camelCase for slots.
   Follow whichever side of the boundary you are on.
+- Filesystem paths are `pathlib.Path`, not `os.path` strings. Qt hands over plain strings, so
+  convert at the boundary (`Path(dialog_result)`) and convert back with `str()` only where Qt
+  needs it again — `slicer.util.loadVolume` passes the name straight to Qt, which cannot
+  convert a `Path`. Functions taking a path accept either, via `Path(path)`.

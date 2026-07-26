@@ -1,5 +1,5 @@
 import functools
-import os
+from pathlib import Path
 
 import numpy as np
 import qt
@@ -290,12 +290,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         dir_path = qt.QFileDialog().getExistingDirectory()
         if dir_path:
             # load the first volume file
-            nii_volume_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".nii.gz")])
-            detection_files = sorted([f for f in os.listdir(dir_path) if f.endswith(".json")])
+            directory = Path(dir_path)
+            nii_volume_files = sorted(directory.glob("*.nii.gz"))
+            detection_files = sorted(directory.glob("*.json"))
             if nii_volume_files:
                 self.reset()
 
-                slicer.util.loadVolume(os.path.join(dir_path, nii_volume_files[0]))
+                # str: Qt cannot convert a Path, and the loader hands the name straight to it.
+                slicer.util.loadVolume(str(nii_volume_files[0]))
 
                 self.volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")[0]
                 # volume renderings view
@@ -322,7 +324,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
                 # detections
                 if detection_files:
-                    self.load_detections(os.path.join(dir_path, detection_files[0]))
+                    self.load_detections(detection_files[0])
                     self.create_spheres()
                     for d in self.detections:
                         self.add_detection_to_table(d)
@@ -791,8 +793,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
 
     def _samplePath(self):
         # Ships with the source tree, not with the installed extension.
-        path = os.path.join(os.path.dirname(__file__), '..', 'tests', 'data', 'detections_sample.json')
-        return os.path.normpath(path)
+        return Path(__file__).parents[1] / 'tests' / 'data' / 'detections_sample.json'
 
     def _addTestVolume(self):
         """Add a synthetic 1 mm volume large enough to contain every sample detection.
@@ -856,7 +857,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.reset()
 
         sample = self._samplePath()
-        if not os.path.exists(sample):
+        if not sample.exists():
             self.delayDisplay(f'Skipped: no sample data at {sample}')
             return
 
@@ -881,7 +882,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.reset()
 
         sample = self._samplePath()
-        if not os.path.exists(sample):
+        if not sample.exists():
             self.delayDisplay(f'Skipped: no sample data at {sample}')
             return
 
@@ -913,7 +914,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.reset()
 
         sample = self._samplePath()
-        if not os.path.exists(sample):
+        if not sample.exists():
             self.delayDisplay(f'Skipped: no sample data at {sample}')
             return
 

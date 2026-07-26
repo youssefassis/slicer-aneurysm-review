@@ -12,7 +12,7 @@ The file format is the contract with whatever produces the detections; it is doc
 import contextlib
 import json
 import math
-import os
+from pathlib import Path
 
 import numpy as np
 
@@ -144,8 +144,7 @@ def load(path):
     for malformed content, and ``OSError`` if the file cannot be read. Callers in the GUI
     turn those into a dialog; the message is meant to be shown to the reviewer.
     """
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
     detections = [add_missing_info(d) for d in validate(data)]
     return sort_for_review(detections)
 
@@ -170,20 +169,21 @@ def save(path, detections):
     failure part-way through leaves the previous file intact: the reviewer normally saves over
     the file they loaded, and a truncated one would cost them the whole session's verdicts.
     """
-    temporary = f"{os.fspath(path)}.tmp"
+    path = Path(path)
+    temporary = path.with_name(path.name + ".tmp")
     try:
-        with open(temporary, "w", encoding="utf-8") as f:
+        with temporary.open("w", encoding="utf-8") as f:
             json.dump({str(i): d for i, d in enumerate(detections)}, f, indent=2)
-        os.replace(temporary, path)
+        temporary.replace(path)
     except Exception:
         with contextlib.suppress(OSError):
-            os.remove(temporary)
+            temporary.unlink()
         raise
 
 
 def describe_load_failure(path, error):
     """Return the message shown to the reviewer when :func:`load` fails."""
-    return f"No valid detection file found.\n\n{os.path.basename(path)}: {error}"
+    return f"No valid detection file found.\n\n{Path(path).name}: {error}"
 
 
 def describe_save_failure(path, error):
@@ -193,7 +193,7 @@ def describe_save_failure(path, error):
     to someone who has just tried to write over a review they care about.
     """
     return ("Saving the detections failed. The existing file has been left unchanged."
-            f"\n\n{os.path.basename(path)}: {error}")
+            f"\n\n{Path(path).name}: {error}")
 
 
 def confidence_percent(d):
