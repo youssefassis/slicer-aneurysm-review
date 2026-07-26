@@ -31,6 +31,11 @@ NUMBER_KEYS = ("confidence", "radius", "viewAngle")
 #: Likert combo index meaning "not scored"; the key is absent rather than 0.
 LIKERT_UNSCORED = 0
 
+#: Where :func:`load` records the key the producer filed a detection under. Derived, so any
+#: value a producer puts there is overwritten. The review file is keyed by it, which is what
+#: lets a review be joined back to the candidates it was made about.
+SOURCE_KEY = "sourceKey"
+
 
 class DetectionFormatError(ValueError):
     """A detection file could not be understood. The message names the offending entry."""
@@ -145,8 +150,12 @@ def load(path):
     turn those into a dialog; the message is meant to be shown to the reviewer.
     """
     data = jsonio.read_json(path)
-    detections = [add_missing_info(d) for d in validate(data)]
-    return sort_for_review(detections)
+    detections = validate(data)
+    # After validate, so that a non-object entry still gets the message naming it rather
+    # than a TypeError from the assignment below.
+    for key, d in data.items():
+        d[SOURCE_KEY] = key
+    return sort_for_review([add_missing_info(d) for d in detections])
 
 
 def sort_for_review(detections):

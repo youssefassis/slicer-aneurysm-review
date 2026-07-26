@@ -46,6 +46,14 @@ a markup point. They are *not* voxel indices.
 A producer normally supplies only `P1`, `P2` and `confidence`; everything else is either
 derived on load or filled in by the reviewer.
 
+### `sourceKey`
+
+`load` records the key each detection was filed under as `sourceKey` on the detection itself.
+It is **derived** — a value a producer puts there is overwritten, since a detection claiming a
+key that is not its own would break the join silently. It is what the review file
+([`review-format.md`](review-format.md)) is keyed by, and the only thing in the input that
+identifies a candidate.
+
 `radius` is the *display* radius of the sphere drawn in the views. It is derived from the
 P1–P2 separation rather than measured from the image, so it indicates the candidate's extent
 rather than a validated diameter. The **Diameter (mm)** column is exactly `2 × radius`.

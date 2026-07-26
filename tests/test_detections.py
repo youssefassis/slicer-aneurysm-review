@@ -209,6 +209,32 @@ class TestLoad:
         assert "no detection" in message
 
 
+class TestSourceKey:
+    def test_load_records_the_key_the_producer_filed_each_detection_under(self, tmp_path):
+        # The review file is keyed by this, so a review can be joined back to the candidates
+        # it was made about. Nothing else in the input identifies a detection.
+        path = write(tmp_path, {"cand_7": {"P1": [0, 0, 0], "P2": [2, 0, 0]}})
+        assert det.load(path)[0][det.SOURCE_KEY] == "cand_7"
+
+    def test_every_detection_gets_its_own_key(self, tmp_path):
+        keys = {d[det.SOURCE_KEY] for d in det.load(SAMPLE)}
+        assert len(keys) == len(det.load(SAMPLE))
+
+    def test_a_producer_value_in_that_field_is_overwritten_not_trusted(self, tmp_path):
+        # It is derived, and a producer claiming a key that is not its own would break the
+        # join silently.
+        path = write(tmp_path, {"real": {"P1": [0, 0, 0], "P2": [2, 0, 0],
+                                        det.SOURCE_KEY: "something-else"}})
+        assert det.load(path)[0][det.SOURCE_KEY] == "real"
+
+    def test_a_malformed_entry_still_reports_its_own_name(self, tmp_path):
+        # The key is attached after validation, so a non-object entry gets the dialog naming
+        # it rather than a TypeError from the assignment.
+        path = write(tmp_path, {"broken": 5})
+        with pytest.raises(det.DetectionFormatError, match="broken"):
+            det.load(path)
+
+
 class TestSave:
     def test_rekeys_by_table_position_not_by_the_producers_names(self, tmp_path):
         # Documented in docs/detection-format.md: input keys are not preserved.
@@ -220,7 +246,12 @@ class TestSave:
         original = det.load(SAMPLE)
         out = tmp_path / "out.json"
         det.save(out, original)
-        assert det.load(out) == original
+        reloaded = det.load(out)
+        # Everything survives except the producer's key, which save rekeys by table position
+        # on the way out — one of the reasons a review does not belong in this file.
+        assert [{k: v for k, v in d.items() if k != det.SOURCE_KEY} for d in reloaded] == \
+               [{k: v for k, v in d.items() if k != det.SOURCE_KEY} for d in original]
+        assert [d[det.SOURCE_KEY] for d in reloaded] == ["0", "1", "2"]
 
     def test_unknown_producer_fields_are_preserved(self, tmp_path):
         # Documented as a guarantee: a producer can carry its own metadata through a review.
