@@ -176,7 +176,7 @@ def describe_save_failure(path, error):
     The previous file is still intact — see :func:`save` — which is the useful thing to say
     to someone who has just tried to write over a review they care about.
     """
-    return (f"Saving the detections failed. The existing file has been left unchanged."
+    return ("Saving the detections failed. The existing file has been left unchanged."
             f"\n\n{os.path.basename(path)}: {error}")
 
 
