@@ -40,6 +40,16 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - An aneurysm whose dome sat directly below its ostium got the identity as its rotation frame,
   which maps the axis onto `-Z` rather than `+Z`, so the rotation slider turned the view the
   opposite way for those detections alone.
+- A nearly vertical aneurysm axis produced a rotation frame that was not orthonormal, because
+  the first row was scaled by a cancellation-prone `sqrt(1 - vz²)`; the slice normal handed to
+  Slicer was then not a unit vector.
+- Dragging an annotation point when only one of the two was placed read a control point that
+  did not exist, so uninitialised memory became the preview sphere's centre and radius.
+- Toggling the crop box before a volume was loaded asked the volume-rendering logic for the
+  display node of a null volume.
+- **Clean** left the volume-rendering display node and its volume property node behind in the
+  scene, and the opacity and threshold sliders went on writing into the property of the volume
+  that had just been removed.
 - Detections the reviewer added by hand jumped to the top of the table after a save and reload,
   because they carry `confidence` 1; they now stay at the end, where the reviewer left them.
 - A failed save reported nothing to the reviewer; it now shows the same kind of dialog a failed
