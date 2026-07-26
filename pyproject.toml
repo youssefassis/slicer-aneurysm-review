@@ -62,3 +62,6 @@ select = [
 # names follow Qt's camelCase rather than PEP 8.
 "ReformatViz/ReformatViz.py" = ["TID251", "F403", "F405", "E501"]
 "ReformatViz/Testing/Python/*" = ["TID251", "F403", "F405"]
+# SIM300 reads `actual == pytest.approx(expected)` as a Yoda condition and would have us
+# invert it; actual-on-the-left is the readable order for an assertion.
+"tests/*" = ["SIM300"]
