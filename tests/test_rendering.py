@@ -34,6 +34,29 @@ class TestToRGB:
         assert rendering.to_rgb(FakeQColor(10, 20, 30)) == pytest.approx([10 / 255, 20 / 255, 30 / 255])
 
 
+class TestIsVisible:
+    def test_no_selection_shows_every_detection(self):
+        assert all(rendering.is_visible(i, -1, checked=True) for i in range(3))
+
+    def test_no_selection_still_honours_the_checkbox(self):
+        assert not any(rendering.is_visible(i, -1, checked=False) for i in range(3))
+
+    def test_a_selection_hides_the_other_detections(self):
+        # Otherwise the aneurysm under review is surrounded by its neighbours' spheres.
+        assert rendering.is_visible(1, 1, checked=True)
+        assert not rendering.is_visible(0, 1, checked=True)
+        assert not rendering.is_visible(2, 1, checked=True)
+
+    def test_the_selected_detection_is_hidden_when_the_box_is_unchecked(self):
+        assert not rendering.is_visible(1, 1, checked=False)
+
+    def test_returns_a_bool_for_a_qt_check_state(self):
+        # PythonQt hands over .checked as 0/1; SetVisibility is happy either way, but a
+        # caller comparing the result is not.
+        assert rendering.is_visible(0, -1, checked=1) is True
+        assert rendering.is_visible(0, -1, checked=0) is False
+
+
 class TestScalarOpacityPoints:
     def ramp(self, **kwargs):
         params = dict(min_value=0, max_value=1000, threshold=300, opacity=0.8,

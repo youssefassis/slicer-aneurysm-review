@@ -4,6 +4,9 @@
 #: The ramp always has this many control points, so it can be updated in place.
 SCALAR_OPACITY_POINT_COUNT = 5
 
+#: How far either side of the threshold the ramp takes to rise, in scalar units.
+OPACITY_RAMP_MARGIN = 20
+
 # vtkPiecewiseFunction node values are (x, y, midpoint, sharpness).
 _MIDPOINT = 0.5
 _SHARPNESS = 0.0
@@ -14,11 +17,23 @@ def to_rgb(color):
     return (color.red() / 255, color.green() / 255, color.blue() / 255)
 
 
+def is_visible(index, selected_index, checked):
+    """Whether detection ``index``'s annotations should be shown.
+
+    The reviewer's checkbox decides, but only for the detection they have selected: while one
+    row is selected the others are hidden, so the aneurysm under review is not surrounded by
+    its neighbours' spheres. ``selected_index`` below zero means no selection, which shows
+    every detection.
+    """
+    return bool(checked) if index == selected_index or selected_index < 0 else False
+
+
 def _clamp(value, low, high):
     return min(max(value, low), high)
 
 
-def scalar_opacity_points(min_value, max_value, threshold, opacity, margin, translucent):
+def scalar_opacity_points(min_value, max_value, threshold, opacity, translucent,
+                          margin=OPACITY_RAMP_MARGIN):
     """Return the opacity ramp control points for the volume rendering.
 
     The ramp is transparent below ``threshold - margin``, rises to ``opacity`` at

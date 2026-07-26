@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
 import pytest
 from ReformatVizLib import detections as det
 
@@ -44,6 +45,33 @@ class TestAddMissingInfo:
         d = det.add_missing_info({"P1": [5, 5, 5], "P2": [5, 5, 5]})
         assert d["radius"] == 0
         assert d["center"] == [5, 5, 5]
+
+
+class TestFromPoints:
+    def test_derives_the_rest_of_the_record_from_the_two_points(self):
+        d = det.from_points([0, 0, 0], [4, 0, 0])
+        assert d["center"] == [2, 0, 0]
+        assert d["radius"] == 2
+        assert d["viewAngle"] == 0
+
+    def test_marks_the_detection_as_the_reviewer_s_own(self):
+        # 'added' is what keeps a hand-placed detection at the end of the review table
+        # instead of promoting it above every real candidate on its confidence of 1.
+        d = det.from_points([0, 0, 0], [1, 0, 0])
+        assert d["added"] == 1
+        assert d["aneurysm"] == 1
+        assert d["confidence"] == 1
+        assert det.sort_for_review([d, {"confidence": 0.1, "P1": [0] * 3, "P2": [1, 0, 0]}])[-1] is d
+
+    def test_positions_survive_a_json_round_trip(self):
+        # They arrive as numpy arrays from the markups node, and numpy scalars are not
+        # JSON-serialisable: saving the review would fail on the reviewer's own detection.
+        d = det.from_points(np.array([1.5, 2.0, 3.0]), np.array([1.5, 2.0, 5.0]))
+        assert json.loads(json.dumps(d))["P1"] == [1.5, 2.0, 3.0]
+
+    def test_the_record_is_one_the_module_would_accept_from_a_file(self):
+        d = det.from_points([0, 1, 2], [3, 4, 5])
+        assert det.validate({"hand-placed": d}) == [d]
 
 
 class TestLikertScore:

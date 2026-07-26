@@ -29,6 +29,9 @@ def makeScalarOpacity():
 # per detection, so 100x100 (~10k points each) cost far more than it showed.
 SPHERE_RESOLUTION = 32
 
+#: The review table's columns, in order. add_detection_to_table fills a row in this order.
+TABLE_COLUMNS = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
+
 def createSphere(center, radius):
     sphere = vtk.vtkSphereSource()
     sphere.SetCenter(center)
@@ -79,8 +82,18 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         uiWidget.setMRMLScene(slicer.mrmlScene)
 
-        # Buttons
-        #### Volume
+        self.connectVolumeControls()
+        self.connectAnnotationControls()
+        self.connectReviewControls()
+        self.connectViewControls()
+        self.initState()
+        self.buildReviewTable()
+
+        # Last, so that a scene closed from the File menu can never land on a half-built
+        # widget: the handler reads self.detections and the table.
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
+    def connectVolumeControls(self):
         self.ui.load_volume_button.clicked.connect(self.load_files) # load volume
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
         self.ui.vol_translucent.stateChanged.connect(self.set_volume_translucent)
@@ -92,7 +105,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.volumeColor.colorChanged.connect(self.set_volume_color)
 
-        #### Annotations
+    def connectAnnotationControls(self):
         self.ui.SpheresVisibility.stateChanged.connect(self.set_spheres_visibility)
         self.ui.LinesVisibility.stateChanged.connect(self.set_lines_visibility)
         self.ui.SpheresOpacity.valueChanged.connect(self.set_spheres_opacity)
@@ -109,7 +122,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.cancelButton.connect('clicked(bool)', self.removeAnnotationNodes)
         self.ui.okButton.connect('clicked(bool)', self.validateAnnotation)
 
-        # Save/Unselect/Reset
+    def connectReviewControls(self):
         self.ui.saveButton.clicked.connect(self.save)
         # The lambda swallows clicked's bool argument, which would otherwise bind to
         # reset_view: the button always emits False, so connecting the slot directly meant
@@ -117,16 +130,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.unselectButton.connect('clicked(bool)', lambda *_: self.unselectAllRows())
         self.ui.cleanButton.connect('clicked(bool)', self.reset)
 
-        # slices visibility
+    def connectViewControls(self):
         self.ui.axialVisibility.stateChanged.connect(self.set_axial_slice_visibility)
-
-        # Slider: Rotate around axis
         self.ui.rotateAxisSlider.valueChanged.connect(self.rotateAxisSlider)
         self.ui.centerCamera.clicked.connect(self.centerCamera)
-
-        # slice thickness
         self.ui.thicknessSlider.valueChanged.connect(self.thicknessSlider)
 
+    def initState(self):
+        """Create the session-long nodes and the state the rest of the widget assumes."""
         self.ensureMarkupsNodes()
         self.spheres = []
         self.lines = []
@@ -142,16 +153,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.volProp : vtkmodules.vtkRenderingCore.vtkVolumeProperty=None
         self.scalarOpacity=makeScalarOpacity()
 
-        self.margin=20
-
         self.prepare_slices()
 
-
+    def buildReviewTable(self):
+        """Build the review table. Its signals are connected here, once — see the note in
+        add_detection_to_table, which runs per row."""
         self.tableWidget = qt.QTableWidget()
-        # self.tableWidget.setMaximumHeight(150)
-        columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
-        self.tableWidget.setColumnCount(len(columns))
-        self.tableWidget.setHorizontalHeaderLabels(columns)
+        self.tableWidget.setColumnCount(len(TABLE_COLUMNS))
+        self.tableWidget.setHorizontalHeaderLabels(TABLE_COLUMNS)
         self.tableWidget.horizontalHeader().setStretchLastSection(True)
         self.tableWidget.resizeColumnsToContents()
         self.tableWidget.setSelectionBehavior(self.tableWidget.SelectRows)
@@ -161,11 +170,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.layout_2 = qt.QGridLayout()
         self.layout_2.addWidget(self.tableWidget)
         self.ui.CollapsibleButton.setLayout(self.layout_2)
-
-        # Last, so that a scene closed from the File menu can never land on a half-built
-        # widget: the handler reads self.detections and the table.
-        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
-
 
     def set_volume_color(self, color=None):
         color = rendering.to_rgb(color if color is not None else self.ui.volumeColor.color)
@@ -185,7 +189,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 max_value=self.ui.volumeThreshold.maximum,
                 threshold=self.ui.volumeThreshold.value,
                 opacity=self.ui.volumeOpacity.value,
-                margin=self.margin,
                 translucent=self.ui.vol_translucent.checked,
             )
             for i, point in enumerate(points):
@@ -338,10 +341,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def add_detection_to_table(self,d):
         idx=self.tableWidget.rowCount
         self.tableWidget.insertRow(idx)
-        columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
         # needed here because columns headers require at least one row...
-        self.tableWidget.setColumnCount(len(columns))
-        self.tableWidget.setHorizontalHeaderLabels(columns)
+        self.tableWidget.setColumnCount(len(TABLE_COLUMNS))
+        self.tableWidget.setHorizontalHeaderLabels(TABLE_COLUMNS)
 
         # Confidence score
         itm = qt.QTableWidgetItem(str(det.confidence_percent(d)))
@@ -460,8 +462,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_spheres_visibility(self):
         for i in range(len(self.detections)):
-            value = self.ui.SpheresVisibility.checked if i == self.selected_detection or self.selected_detection < 0 else False
-            self.spheres[i].GetDisplayNode().SetVisibility(value)
+            self.spheres[i].GetDisplayNode().SetVisibility(
+                rendering.is_visible(i, self.selected_detection, self.ui.SpheresVisibility.checked))
 
     def set_spheres_color(self, color=None):
         color = rendering.to_rgb(color if color is not None else self.ui.SpheresColorPicker.color)
@@ -479,8 +481,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_lines_visibility(self):
         for i in range(len(self.detections)):
-            value = self.ui.LinesVisibility.checked if i == self.selected_detection  or self.selected_detection < 0 else False
-            self.lines[i].GetDisplayNode().SetVisibility(value)
+            self.lines[i].GetDisplayNode().SetVisibility(
+                rendering.is_visible(i, self.selected_detection, self.ui.LinesVisibility.checked))
 
     def set_confidence_color(self, color=None):
         if self.confidences.GetDisplayNode():
@@ -491,8 +493,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def set_confidence_visibility(self):
         if self.confidences:
             for i in range(len(self.detections)):
-                value = self.ui.ConfidenceVisibility.checked if i == self.selected_detection  or self.selected_detection < 0 else False
-                self.confidences.SetNthControlPointVisibility(i,value)
+                self.confidences.SetNthControlPointVisibility(
+                    i, rendering.is_visible(i, self.selected_detection, self.ui.ConfidenceVisibility.checked))
 
     def set_markups_color(self, color=None):
         if self.ostia.GetDisplayNode() and self.domes.GetDisplayNode():
@@ -503,7 +505,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_markups_visibility(self):
         for i in range(len(self.detections)):
-            value = self.ui.MarkupsVisibility.checked if i == self.selected_detection  or self.selected_detection < 0 else False
+            value = rendering.is_visible(i, self.selected_detection, self.ui.MarkupsVisibility.checked)
             self.ostia.SetNthControlPointVisibility(i,value)
             self.domes.SetNthControlPointVisibility(i,value)
 
@@ -622,12 +624,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         markups.GetNthControlPointPositionWorld(1, p2)
         self.removeAnnotationNodes()
 
-        detection = {"P1": p1.tolist(),
-                    "P2": p2.tolist(),
-                    "aneurysm": 1,
-                    "added": 1
-                    }
-        detection = det.add_missing_info(detection)
+        detection = det.from_points(p1, p2)
         self.detections.append(detection)
         self.add_detection_to_table(detection)
         self.add_detection_to_scene(detection)
@@ -652,13 +649,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         markups.GetNthControlPointPositionWorld(0, p1)
         markups.GetNthControlPointPositionWorld(1, p2)
 
-        detection = {"P1": p1.tolist(),
-                    "P2": p2.tolist(),
-                    "aneurysm": 1,
-                    "added": 1
-                    }
-        detection = det.add_missing_info(detection)
-
+        detection = det.from_points(p1, p2)
         self.tmpSphereSource = createSphere(detection['center'],detection['radius'])
         self.tmpSphere=createModel(self.tmpSphereSource, name='Tmp Sphere')
 
@@ -678,10 +669,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             p1, p2 = np.empty(3), np.empty(3)
             markups.GetNthControlPointPositionWorld(0, p1)
             markups.GetNthControlPointPositionWorld(1, p2)
-            center=(p1+p2)/2
-            radius = np.linalg.norm(p1-p2)/2
-            self.tmpSphereSource.SetCenter(center)
-            self.tmpSphereSource.SetRadius(radius)
+            detection = det.from_points(p1, p2)
+            self.tmpSphereSource.SetCenter(detection['center'])
+            self.tmpSphereSource.SetRadius(detection['radius'])
             self.tmpSphereSource.Update()
             slicer.util.forceRenderAllViews()
 
@@ -778,10 +768,10 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
     """The test `slicer_add_python_unittest` registers, and the module's Self Test button.
 
     This covers only what needs Slicer: that the module loads, that a detection file becomes
-    scene nodes, that selecting a row reformats the Red slice, and that closing the scene
-    resets the widget. The geometry and file format are covered far more thoroughly by the
-    Slicer-free suite in `tests/`, which is where new cases belong unless they genuinely need
-    MRML.
+    scene nodes, that selecting a row reformats the Red slice, that two placed points become a
+    detection, and that closing the scene resets the widget. The geometry and file format are
+    covered far more thoroughly by the Slicer-free suite in `tests/`, which is where new cases
+    belong unless they genuinely need MRML.
     """
 
     def setUp(self):
@@ -792,6 +782,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_module_loads()
         self.test_detections_become_scene_nodes()
         self.test_selecting_a_row_aligns_the_red_slice()
+        self.test_a_hand_placed_annotation_becomes_a_detection()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -818,6 +809,39 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
                                                 name='ReformatVizTestVolume')
         slicer.util.setSliceViewerLayers(background=volume, fit=True)
         return volume
+
+    def test_a_hand_placed_annotation_becomes_a_detection(self):
+        self.delayDisplay('Two placed points become a detection the reviewer can score')
+        widget = self._widget()
+        widget.reset()
+        widget.volNode = self._addTestVolume()
+
+        ostium, dome = [10.0, 0.0, 0.0], [10.0, 0.0, 6.0]
+        widget.prepareAnnotationNode()
+        widget.tmpMark.AddControlPoint(ostium)
+        widget.tmpMark.AddControlPoint(dome)
+        widget.validateAnnotation()
+
+        self.assertEqual(len(widget.detections), 1)
+        detection = widget.detections[0]
+        # Placed by the reviewer, not by a detector: 'added' is what keeps it at the end of
+        # the table after a save and reload, whatever its confidence.
+        self.assertEqual(detection['added'], 1)
+        self.assertEqual(detection['center'], [10.0, 0.0, 3.0])
+        self.assertAlmostEqual(detection['radius'], 3.0)
+        # The row, the sphere, the line and the three markups points all have to arrive
+        # together, or the positional invariant between them is already broken.
+        self.assertEqual(widget.tableWidget.rowCount, 1)
+        self.assertEqual(len(widget.spheres), 1)
+        self.assertEqual(len(widget.lines), 1)
+        for markups in (widget.ostia, widget.domes, widget.confidences):
+            self.assertEqual(markups.GetNumberOfControlPoints(), 1)
+        # The temporary placement node and its preview sphere are gone.
+        self.assertIsNone(widget.tmpMark)
+        self.assertIsNone(widget.tmpSphere)
+
+        widget.reset()
+        self.delayDisplay('Passed')
 
     def test_module_loads(self):
         self.delayDisplay('Module loads and builds its widget')

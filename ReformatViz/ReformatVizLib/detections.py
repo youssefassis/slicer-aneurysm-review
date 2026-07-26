@@ -58,6 +58,22 @@ def add_missing_info(d):
     return d
 
 
+def from_points(p1, p2):
+    """Return a complete detection for an ostium and a dome the reviewer placed by hand.
+
+    ``added`` marks it as the reviewer's own: it keeps the detection at the end of the review
+    table whatever its confidence (see :func:`sort_for_review`) and is written back out with
+    the file. The positions are converted to plain lists, because they arrive as numpy arrays
+    from the markups node and have to survive :func:`save`.
+    """
+    return add_missing_info({
+        "P1": np.asarray(p1).tolist(),
+        "P2": np.asarray(p2).tolist(),
+        "aneurysm": 1,
+        "added": 1,
+    })
+
+
 def set_likert_score(d, index):
     """Record a Likert combo index, removing the key entirely for "not scored"."""
     if index == LIKERT_UNSCORED:

@@ -28,7 +28,9 @@ no tests at all. When adding code, ask whether it *needs* an MRML node; if not, 
 behind the boundary.
 
 Slicer objects are the glue's business. The pattern is: read plain values out of widgets and
-nodes, compute in `ReformatVizLib`, write the result back into nodes.
+nodes, compute in `ReformatVizLib`, write the result back into nodes. `det.from_points` and
+`rendering.is_visible` are that pattern at its smallest: both were inline in the widget, in
+three and four places respectively, where nothing could reach them.
 
 ## The reformatting
 
@@ -85,9 +87,10 @@ replacing this with an object that owns its own nodes is the obvious next refact
 ### Selection
 
 `self.selected_detection` is the table row index, `-1` for none. Every `set_*_visibility`
-method applies the same rule: *show if `i == selected_detection` or `selected_detection < 0`*
-— no selection shows everything. `onRowSelected` → `updateObjectsDisplay()` +
-`prepare_slices()` is the only path that reacts to selection.
+method asks `rendering.is_visible(i, selected_detection, checked)`, which applies the one
+rule: *show if `i == selected_detection` or `selected_detection < 0`* — no selection shows
+everything. `onRowSelected` → `updateObjectsDisplay()` + `prepare_slices()` is the only path
+that reacts to selection.
 
 ### Scene ownership
 
