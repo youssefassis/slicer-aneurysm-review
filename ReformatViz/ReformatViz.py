@@ -115,7 +115,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
 
         slicer.app.pythonConsole().clear()
-        self.cleanup()
+        self.clearScene()
 
     def setup(self):
         """
@@ -784,11 +784,19 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.setCurrentItem(None)
         self.onRowSelected(-1)
     
+    def clearScene(self):
+        """
+        Empty the scene. This module assumes it is the only owner of the scene:
+        load_files and onCropChanged look nodes up by class and take the first
+        match, so data left by another module would be picked up by mistake.
+        """
+        slicer.mrmlScene.Clear(0)
+
     def cleanup(self):
         """
         Called when the application closes and the module widget is destroyed.
         """
-        slicer.mrmlScene.Clear(0)
+        self.clearScene()
 
     def enter(self):
         """
