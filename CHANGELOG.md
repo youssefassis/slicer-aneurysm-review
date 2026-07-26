@@ -54,6 +54,14 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - Rejecting a detection file reported "No valid detection file found" with no reason; the
   dialog now names the file and the actual cause.
 
+### Changed
+
+- Annotation spheres are tessellated at 32×32 rather than 100×100 — a tenth of the geometry per
+  detection, and a tenth of the work per mouse move while an annotation point is dragged, with
+  no visible difference at this scale.
+- Selecting a table row reformats the Red slice once instead of twice, and loading a volume
+  builds the opacity ramp once instead of four times.
+
 ### Removed
 
 - `getSphereCenterAndRadius`, plus the unused `logging` and `copy.deepcopy` imports.

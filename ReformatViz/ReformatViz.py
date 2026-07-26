@@ -309,11 +309,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
                 self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
 
-                # define the scalarOpacity function
+                # define the scalarOpacity function. Each of these three assignments emits
+                # valueChanged, so unblocked they rebuild the ramp against a range that is
+                # only half updated; the explicit call afterwards is the one that counts.
                 min_val, max_val = self.volNode.GetImageData().GetScalarRange()
+                wasBlocked = self.ui.volumeThreshold.blockSignals(True)
                 self.ui.volumeThreshold.maximum = max_val
                 self.ui.volumeThreshold.minimum = min_val
                 self.ui.volumeThreshold.value = (max_val+min_val)/3
+                self.ui.volumeThreshold.blockSignals(wasBlocked)
                 self.updateScalarOpacity()
 
                 self.ui.vol_visibility.checked = 1
@@ -508,7 +512,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.reformatLogic = slicer.modules.reformat.logic()
 
+        # Setting the value emits valueChanged, which reformats; the explicit call below has
+        # to stay, because switching between two detections saved at the same angle emits
+        # nothing while still needing the new frame applied. Blocking the signal keeps that
+        # from reformatting the Red slice twice on every row click.
+        wasBlocked = self.ui.rotateAxisSlider.blockSignals(True)
         self.ui.rotateAxisSlider.value=angleValue
+        self.ui.rotateAxisSlider.blockSignals(wasBlocked)
         self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
         self.thicknessSlider(self.ui.thicknessSlider.value)
         self.centerCamera()
