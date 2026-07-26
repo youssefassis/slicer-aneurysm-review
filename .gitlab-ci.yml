@@ -1,0 +1,52 @@
+# CI for the Slicer-free part of the project.
+#
+# Deliberately two-tier: these jobs need no Slicer, so they finish in seconds and can gate
+# every push. Booting Slicer to run the in-Slicer test (ReformatVizTest) takes minutes and a
+# container image, so it is NOT wired up here — see docs/development.md for running it
+# locally, and the commented job at the bottom for what enabling it would take.
+#
+# Gating every commit on a Slicer boot is how CI ends up switched off.
+
+stages: [check]
+
+default:
+  image: python:3.11-slim
+  cache:
+    key:
+      files: [requirements-dev.txt]
+    paths: [.pip-cache]
+  before_script:
+    - export PIP_CACHE_DIR="$CI_PROJECT_DIR/.pip-cache"
+    - python -m pip install --quiet --upgrade pip
+    - python -m pip install --quiet -r requirements-dev.txt
+
+lint:
+  stage: check
+  script:
+    - ruff check .
+  # Also fails if ReformatVizLib ever imports slicer/vtk/qt: the banned-api rules in
+  # pyproject.toml are what keep the core testable.
+
+tests:
+  stage: check
+  script:
+    - python -m pytest --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+# To run the in-Slicer test in CI you need a Slicer build or a prebuilt Slicer image plus a
+# virtual framebuffer, because the module builds Qt widgets and a 3D view:
+#
+# slicer-tests:
+#   stage: check
+#   image: <a pinned Slicer image for the version this extension targets>
+#   script:
+#     - xvfb-run -a Slicer --no-splash --testing --python-code
+#       "slicer.util.selectModule('ReformatViz'); slicer.modules.ReformatVizWidget.parent.moduleTest().runTest()"
+#   allow_failure: true
+#
+# Pin the image to the same Slicer version README names as supported, so a Slicer release
+# cannot change what this pipeline means. Confirm the exact invocation against that image
+# before enabling.
