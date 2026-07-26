@@ -17,8 +17,12 @@ So one directory per case, with one volume and one detection file, is the arrang
 expects. If the detection file cannot be read, a dialog says why and the volume still loads
 with an empty table. See [`detection-format.md`](detection-format.md) for the file format.
 
-**Opening the module clears the whole Slicer scene**, and so does loading a case. Save your
-work before switching cases — nothing is written to disk until you press **Save**.
+Opening a case also opens its **review** — `review_<your name>.json`, written in the same
+directory. If one is already there it is resumed, so a case can be left and picked up later.
+Nothing you do is written into the detection file; that stays the detector's.
+
+**Opening the module clears the whole Slicer scene**, and so does loading a case. You do not
+need to save: every verdict is written to the review as you make it.
 
 ## Reviewing a candidate
 
@@ -28,8 +32,13 @@ The table lists candidates, most confident first:
 | --- | --- |
 | Confidence (%) | The detector's score. Sorts the table |
 | Diameter (mm) | Twice the sphere radius, derived from the ostium–dome separation |
-| Aneurysm ? | Your verdict. Tick if this is a real aneurysm |
+| Aneurysm ? | Your verdict: **—** (not looked at yet), **Yes**, **No**, **Uncertain** (you want a second opinion), **Not assessable** (the image cannot answer it) |
+| Not because | Why it is not an aneurysm. Only available on a **No** |
 | Likert | Your confidence, 1–5. `-` means not scored |
+| Note | Anything worth recording about this candidate |
+
+**—** is a real value, not an empty one: a candidate you have not looked at is not the same as
+one you looked at and rejected, and the case cannot be signed off while any row still shows it.
 
 **Click a row** to review that candidate. Everything then focuses on it: only its sphere,
 line and markups are shown, the slice view reformats onto it, and the 3D camera re-centres.
@@ -44,18 +53,20 @@ With a row selected:
   Red slice — thicker shows more vessel at once, thinner isolates the neck.
 - **Center view** re-aligns the 3D view with the current slice, keeping its distance.
 
-**Unselect all** returns to showing every candidate at once; **Clean** discards everything
-loaded, including unsaved verdicts.
+**Unselect all** returns to showing every candidate at once; **Clean** clears the screen. Your
+verdicts are already on disk, so **Clean** does not discard them — reopening the case brings
+them back.
 
 ## Adding a missed aneurysm
 
 1. **Add** (under *Detections*) starts placement.
 2. Click the **ostium** (where the aneurysm meets the parent vessel), then the **dome** (its
    far tip). A sphere previews between them and follows the points while you drag either one.
-3. **OK** commits it — it joins the end of the table, already ticked as an aneurysm. **Cancel**
-   discards it.
+3. **OK** commits it — it joins the end of the table, already recorded as **Yes**, since you
+   placed it because it is one. **Cancel** discards it.
 
-Added candidates are marked in the saved file, so they can be told apart from the detector's.
+Your own findings are marked as yours in the review and kept apart from the detector's, and they
+come back when the case is reopened.
 
 ## Display controls
 
@@ -76,12 +87,25 @@ that candidate only; with nothing selected, to all of them.
 
 Under *Cut planes*, **Visibility** toggles the Red slice in the 3D view.
 
-## Saving
+## Finishing a case
 
-**Save** asks for a filename and writes every candidate with your verdicts, Likert scores and
-saved view angles. There is no autosave and no prompt on exit — an unsaved review is lost when
-the scene is cleared, when another case is loaded, or when Slicer closes.
+Every verdict, score, note and view angle is written to `review_<your name>.json` as you work.
+There is nothing to remember to save, and a crash costs at most the row you were on.
 
-A saved file can be loaded again to continue a review: verdicts, scores and view angles all
-come back. Note that the keys in the saved file are renumbered by table position rather than
-keeping the producer's names — see [`detection-format.md`](detection-format.md).
+**Sign off** declares the case finished — that is what tells anyone reading the review that
+they are looking at a complete read rather than one still in progress. It is refused while any
+candidate is still **—**, and says how many are left. The heading above the table tracks the
+same thing: *Output — 2 of 3 decided*.
+
+A signed-off case is locked. Pressing **Reopen** asks why and records the answer, so an
+amendment is part of the record rather than a silent edit; the original sign-off stays in the
+file with its timestamp.
+
+Who the review is attributed to is your OS user name. To set it explicitly, in the Python
+console:
+
+```python
+slicer.app.userSettings().setValue('ReformatViz/Reviewer', 'ykerrien')
+```
+
+See [`review-format.md`](review-format.md) for what the file contains.

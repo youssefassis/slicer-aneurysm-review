@@ -203,6 +203,35 @@ class TestAddDetection:
             review.add_detection(r, [0, 0, 0], [0, 0, 2], LATER, key="c1")
 
 
+class TestAddCandidates:
+    def test_a_candidate_the_review_has_not_seen_is_added_undecided(self):
+        # A detector rerun over the same case must not leave new candidates unreviewable.
+        r = blank("c0")
+        assert review.add_candidates(r, ["c0", "c1"]) == ("c1",)
+        assert review.entry(r, "c1")["state"] == review.UNREVIEWED
+
+    def test_leaves_the_verdicts_it_already_has_alone(self):
+        r = blank("c0")
+        review.set_state(r, "c0", review.CONFIRMED, LATER)
+        review.add_candidates(r, ["c0", "c1"])
+        assert review.entry(r, "c0")["state"] == review.CONFIRMED
+
+    def test_a_new_candidate_reopens_the_question_of_completeness(self):
+        r = blank("c0")
+        review.set_state(r, "c0", review.CONFIRMED, LATER)
+        assert review.can_sign_off(r)
+        review.add_candidates(r, ["c0", "c1"])
+        assert not review.can_sign_off(r)
+
+    def test_a_signed_off_case_refuses_new_candidates(self):
+        # Its verdicts are a finished record; the case has to be reopened deliberately.
+        r = blank("c0")
+        review.set_state(r, "c0", review.CONFIRMED, LATER)
+        review.sign_off(r, LATEST)
+        with pytest.raises(review.ReviewError, match="signed off"):
+            review.add_candidates(r, ["c0", "c1"])
+
+
 class TestSignOff:
     def decided(self):
         r = blank()

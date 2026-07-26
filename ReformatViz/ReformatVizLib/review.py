@@ -214,6 +214,20 @@ def _unused_key(review):
     return f"added_{index}"
 
 
+def add_candidates(review, keys):
+    """Add undecided entries for candidates the review does not know about, and return them.
+
+    A detection file that gained candidates after the review was started — a detector rerun
+    over the same case — must not leave them silently unreviewable, and must not quietly
+    disappear from a case someone is about to sign off either.
+    """
+    _require_open(review)
+    unknown = tuple(key for key in keys if key not in review["detections"])
+    for key in unknown:
+        review["detections"][key] = _new_entry()
+    return unknown
+
+
 def added_keys(review):
     """Return the keys of the candidates the reviewer added, in insertion order."""
     return tuple(key for key, e in review["detections"].items() if e.get("addedByReviewer"))

@@ -11,6 +11,26 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Added
 
+- **A review file, autosaved.** Verdicts, Likert scores, notes and view angles are written to
+  `review_<reviewer>.json` in the case's directory as the reviewer works, and resumed when the
+  case is opened again. The detection file is the detector's output and is no longer written
+  to. Format documented in `docs/review-format.md`.
+- **Undecided is a state.** The verdict is `—` / Yes / No / Uncertain / Not assessable instead
+  of a checkbox, so a candidate nobody has looked at is no longer indistinguishable from one
+  that was examined and rejected — which also means a half-reviewed case can no longer read as
+  a negative one.
+- **A rejection reason and a free-text note per candidate**, so a false-positive rate can be
+  broken down into what the candidates actually were.
+- **Sign off**, replacing **Save**: it declares a case finished, is refused while any candidate
+  is undecided, and locks the verdicts. Reopening a signed-off case asks for a reason and
+  records it, leaving the original sign-off in the file.
+- **Provenance in every review**: who reviewed, which build of the module and of Slicer, when
+  the case was opened and signed off, and the SHA-256 of the detection file it was reviewed
+  against, so a detector rerun under an existing review is noticed instead of silently changing
+  what the reviewer is held to have seen. The reviewer is the OS user name unless the
+  `ReformatViz/Reviewer` setting says otherwise.
+- **An append-only event log** in the review: every verdict, score, note, addition, sign-off and
+  reopen with its timestamp, so a verdict that was changed leaves both decisions on record.
 - Apache-2.0 licence, `CITATION.cff`, and this changelog.
 - `ReformatVizLib`, a Slicer-free package holding the geometry, detection I/O and display
   maths, so that logic can be tested without launching Slicer.
@@ -78,6 +98,10 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Changed
 
+- Non-ASCII text in the files the module writes is stored literally rather than
+  `\uXXXX`-escaped, so a reviewer's note is legible to whoever opens the file.
+- `detections.load` records the key each detection was filed under as `sourceKey`, which is
+  what the review file is keyed by — see `docs/detection-format.md`.
 - Annotation spheres are tessellated at 32×32 rather than 100×100 — a tenth of the geometry per
   detection, and a tenth of the work per mouse move while an annotation point is dragged, with
   no visible difference at this scale.

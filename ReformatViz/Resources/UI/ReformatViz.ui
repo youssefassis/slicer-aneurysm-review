@@ -698,9 +698,9 @@
             <number>20</number>
           </property>
           <item>
-            <widget class="QPushButton" name="saveButton">
+            <widget class="QPushButton" name="signOffButton">
               <property name="text">
-                <string>Save</string>
+                <string>Sign off</string>
               </property>
             </widget>
           </item>

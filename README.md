@@ -37,14 +37,18 @@ dependencies.
 2. Click a row in the table to review that candidate. The slice view reformats to contain
    its axis; **Angle** spins the view around it; **Thickness** sets the slab thickness for
    the maximum-intensity projection.
-3. Tick **Aneurysm ?** and set a **Likert** score per candidate. **Add** places two points
-   (ostium then dome) to record an aneurysm the detector missed.
-4. **Save** writes the annotated detections to a JSON file of your choosing.
+3. Record a verdict per candidate — **Yes**, **No** (with a reason), **Uncertain** or **Not
+   assessable** — plus a **Likert** score and a note. **Add** places two points (ostium then
+   dome) to record an aneurysm the detector missed.
+4. **Sign off** when every candidate has been decided. Nothing needs saving: the review is
+   written to `review_<reviewer>.json` in the case's directory as you work, and resumed when
+   you open the case again.
 
 The full workflow and what each display control does is in
-[`docs/user-guide.md`](docs/user-guide.md). The input and output file format is specified in
+[`docs/user-guide.md`](docs/user-guide.md). The detection file the module reads is specified in
 [`docs/detection-format.md`](docs/detection-format.md) — read that if you generate the
-detection files.
+detection files — and the review it writes in
+[`docs/review-format.md`](docs/review-format.md).
 
 ## Develop
 

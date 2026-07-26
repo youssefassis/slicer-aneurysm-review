@@ -1,16 +1,20 @@
 import functools
+import getpass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
 import qt
+
+# The Slicer-free core: geometry, detection file format, the review record and display
+# maths. See ReformatVizLib/__init__.py for why the boundary exists.
+import ReformatVizLib
 import slicer
 import vtk
 import vtkmodules
-
-# The Slicer-free core: geometry, detection file format and display maths. See
-# ReformatVizLib/__init__.py for why the boundary exists.
 from ReformatVizLib import detections as det
-from ReformatVizLib import geometry, rendering
+from ReformatVizLib import geometry, jsonio, rendering
+from ReformatVizLib import review as rev
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
@@ -30,7 +34,60 @@ def makeScalarOpacity():
 SPHERE_RESOLUTION = 32
 
 #: The review table's columns, in order. add_detection_to_table fills a row in this order.
-TABLE_COLUMNS = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
+TABLE_COLUMNS = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Not because', 'Likert',
+                 'Note']
+COL_CONFIDENCE, COL_DIAMETER, COL_VERDICT, COL_REASON, COL_LIKERT, COL_NOTE = range(6)
+
+#: The verdict combo: what the reviewer picks, and the state it records. A verdict combo
+#: rather than a checkbox because a checkbox cannot say "not looked at yet", which is the one
+#: thing a triage review must be able to say.
+VERDICT_CHOICES = (('\u2014', rev.UNREVIEWED),
+                   ('Yes', rev.CONFIRMED),
+                   ('No', rev.REJECTED),
+                   ('Uncertain', rev.UNCERTAIN),
+                   ('Not assessable', rev.NOT_ASSESSABLE))
+
+#: The reason combo, enabled only for a rejected candidate.
+REASON_CHOICES = (('\u2014', None),
+                  ('Infundibulum', 'infundibulum'),
+                  ('Vessel loop', 'vessel_loop'),
+                  ('Artifact', 'artifact'),
+                  ('Other pathology', 'other_pathology'),
+                  ('Duplicate', 'duplicate'),
+                  ('Other', 'other'))
+
+#: Set this to attribute reviews to someone other than the logged-in user, from the Python
+#: console: slicer.app.userSettings().setValue('ReformatViz/Reviewer', 'ykerrien')
+REVIEWER_SETTING = 'ReformatViz/Reviewer'
+
+
+def reviewerName():
+    """Return who a review made now is attributed to.
+
+    Slicer has no notion of a signed-in user, so this is the OS account unless the setting
+    above says otherwise. It ends up in the review file and in its file name.
+    """
+    configured = slicer.app.userSettings().value(REVIEWER_SETTING)
+    return str(configured) if configured else getpass.getuser()
+
+
+def toolDescription():
+    """Return the build string recorded in the review — its only traceability."""
+    return f"ReformatViz {ReformatVizLib.__version__} (Slicer {slicer.app.applicationVersion})"
+
+
+def now():
+    """Return the timestamp to record. UTC, so reviews from two sites can be ordered."""
+    # Slicer 5.12 runs Python 3.12, so datetime.UTC is available; requires-python is 3.11.
+    return datetime.now(UTC).isoformat()
+
+
+def _choiceIndex(choices, value):
+    """Return the combo index whose recorded value is ``value``, or 0."""
+    for index, (_, choice) in enumerate(choices):
+        if choice == value:
+            return index
+    return 0
 
 def createSphere(center, radius):
     sphere = vtk.vtkSphereSource()
@@ -123,7 +180,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.okButton.connect('clicked(bool)', self.validateAnnotation)
 
     def connectReviewControls(self):
-        self.ui.saveButton.clicked.connect(self.save)
+        self.ui.signOffButton.clicked.connect(self.onSignOff)
         # The lambda swallows clicked's bool argument, which would otherwise bind to
         # reset_view: the button always emits False, so connecting the slot directly meant
         # unselecting never reset the view.
@@ -153,11 +210,19 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.volProp : vtkmodules.vtkRenderingCore.vtkVolumeProperty=None
         self.scalarOpacity=makeScalarOpacity()
 
+        # The review of the case on screen, and where it is written. None means no case is
+        # open, and nothing is recorded.
+        self.review = None
+        self.reviewPath = None
+        self.autosaveFailed = False
+
         self.prepare_slices()
 
     def buildReviewTable(self):
         """Build the review table. Its signals are connected here, once — see the note in
         add_detection_to_table, which runs per row."""
+        self.reviewSectionTitle = self.ui.CollapsibleButton.text
+        self.populatingTable = False
         self.tableWidget = qt.QTableWidget()
         self.tableWidget.setColumnCount(len(TABLE_COLUMNS))
         self.tableWidget.setHorizontalHeaderLabels(TABLE_COLUMNS)
@@ -166,6 +231,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.setSelectionBehavior(self.tableWidget.SelectRows)
         self.tableWidget.setSelectionMode(self.tableWidget.SingleSelection)
         self.tableWidget.clicked.connect(self.onRowSelected)
+        # Once, not per row: the note cells are ordinary items, so one table-level signal
+        # covers all of them however many rows arrive.
+        self.tableWidget.itemChanged.connect(self.onNoteEdited)
 
         self.layout_2 = qt.QGridLayout()
         self.layout_2.addWidget(self.tableWidget)
@@ -253,7 +321,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
         if node is not None:
             if self.detections and self.selected_detection >= 0:
-                self.detections[self.selected_detection]['viewAngle']=value
+                d = self.detections[self.selected_detection]
+                d['viewAngle']=value
+                if self.reviewEntry(d):
+                    rev.set_view_angle(self.review, d[det.SOURCE_KEY], value)
             self.reformatLogic.SetSliceNormal(node, geometry.slice_normal(self.aneRz, value))
             # Read back the slice axes Slicer settled on, then roll in-plane so the
             # aneurysm stays upright instead of tumbling as the reviewer rotates.
@@ -324,10 +395,16 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
                 # detections
                 if detection_files:
-                    self.load_detections(detection_files[0])
+                    if not self.load_detections(detection_files[0]):
+                        return
+                    if not self.startReview(directory, nii_volume_files[0],
+                                            detection_files[0]):
+                        self.reset()
+                        return
                     self.create_spheres()
                     for d in self.detections:
                         self.add_detection_to_table(d)
+                    self.updateProgress()
 
     def load_detections(self, file_path):
         # Parsing and validation live in ReformatVizLib; this method only turns a failure
@@ -338,10 +415,122 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         except (OSError, ValueError) as e:
             slicer.util.errorDisplay(det.describe_load_failure(file_path, e))
             self.detections = []
+            return False
+        return True
+
+    def startReview(self, directory, volumePath, detectionPath):
+        """Open the case's review, resuming the one on disk if there is one.
+
+        Returns False if the case must not be reviewed at all, which is the answer whenever
+        an existing review cannot be read: opening the case would start a second review over
+        the top of a record nobody has been able to look at.
+        """
+        self.reviewPath = directory / rev.file_name(reviewerName())
+        digest = jsonio.sha256(detectionPath)
+
+        if self.reviewPath.exists():
+            try:
+                self.review = rev.load(self.reviewPath)
+            except (OSError, ValueError) as e:
+                slicer.util.errorDisplay(rev.describe_load_failure(self.reviewPath, e))
+                self.review = None
+                self.reviewPath = None
+                return False
+            if not rev.matches_source(self.review, digest):
+                slicer.util.warningDisplay(rev.describe_source_mismatch(self.review))
+            self.restoreAddedDetections()
+            if self.review['review']['state'] != rev.SIGNED_OFF:
+                rev.add_candidates(self.review, [d[det.SOURCE_KEY] for d in self.detections])
+            self.restoreViewAngles()
+            return True
+
+        self.review = rev.new(
+            study={'directory': directory.name},
+            source={'detectionFile': detectionPath.name, 'sha256': digest,
+                    'volumeFile': volumePath.name},
+            reviewer=reviewerName(), tool=toolDescription(), at=now(),
+            keys=[d[det.SOURCE_KEY] for d in self.detections])
+        self.saveReview()
+        return True
+
+    def restoreAddedDetections(self):
+        """Put the aneurysms the reviewer added in an earlier session back on the list.
+
+        They exist only in the review — the detection file is the detector's and is never
+        written to — so without this a resumed case silently loses the reviewer's own
+        findings.
+        """
+        for key in rev.added_keys(self.review):
+            entry = rev.entry(self.review, key)
+            detection = det.from_points(entry['P1'], entry['P2'])
+            detection[det.SOURCE_KEY] = key
+            self.detections.append(detection)
+
+    def restoreViewAngles(self):
+        """Reopen each candidate at the angle the reviewer last looked at it from."""
+        for d in self.detections:
+            entry = self.reviewEntry(d)
+            if entry:
+                d['viewAngle'] = entry['viewAngle']
+
+    def reviewEntry(self, detection):
+        """Return the review entry for ``detection``, or None when no case is open."""
+        if not self.review:
+            return None
+        return self.review['detections'].get(detection.get(det.SOURCE_KEY))
+
+    def saveReview(self):
+        """Write the review out. Called after every change the reviewer makes.
+
+        The reviewer never asks for this: a verdict that is only in the module is a verdict
+        lost to the next crash. A failure is reported once rather than on every keystroke,
+        because a dialog per character would be its own kind of silence.
+        """
+        if not self.review or not self.reviewPath:
+            return
+        try:
+            rev.save(self.reviewPath, self.review)
+        except OSError as e:
+            if not self.autosaveFailed:
+                self.autosaveFailed = True
+                slicer.util.errorDisplay(rev.describe_save_failure(self.reviewPath, e))
+            return
+        self.autosaveFailed = False
+
+    def applyToReview(self, change):
+        """Make one change to the review, then write it out and refresh the progress."""
+        if not self.review:
+            return False
+        try:
+            change()
+        except rev.ReviewError as e:
+            slicer.util.errorDisplay(str(e))
+            return False
+        self.saveReview()
+        self.updateProgress()
+        return True
+
+    def updateProgress(self):
+        """Show how much of the case is decided, next to the table it refers to."""
+        if not self.review:
+            self.ui.CollapsibleButton.text = self.reviewSectionTitle
+            self.ui.signOffButton.text = 'Sign off'
+            return
+        self.ui.CollapsibleButton.text = (f'{self.reviewSectionTitle} '
+                                          f'\u2014 {rev.describe_progress(self.review)}')
+        signedOff = self.review['review']['state'] == rev.SIGNED_OFF
+        self.ui.signOffButton.text = 'Reopen' if signedOff else 'Sign off'
 
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
     def add_detection_to_table(self,d):
         idx=self.tableWidget.rowCount
+        # No key and no entry when no case is open; the handlers then have nothing to record
+        # to, which applyToReview already refuses.
+        key = d.get(det.SOURCE_KEY)
+        entry = self.reviewEntry(d) or {}
+        # The cell widgets below emit as they are populated; those signals would record the
+        # defaults back over the verdicts just restored from disk.
+        self.populatingTable = True
         self.tableWidget.insertRow(idx)
         # needed here because columns headers require at least one row...
         self.tableWidget.setColumnCount(len(TABLE_COLUMNS))
@@ -350,41 +539,137 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Confidence score
         itm = qt.QTableWidgetItem(str(det.confidence_percent(d)))
         itm.setTextAlignment(4)
-        self.tableWidget.setItem(idx, 0,  itm)
+        self.tableWidget.setItem(idx, COL_CONFIDENCE,  itm)
 
         # Diameter (mm)
         itm = qt.QTableWidgetItem(str(det.diameter(d)))
         itm.setTextAlignment(4)
-        self.tableWidget.setItem(idx, 1,  itm)
+        self.tableWidget.setItem(idx, COL_DIAMETER,  itm)
 
-        cbox = qt.QCheckBox()
-        cbox.checked = int(d['aneurysm'])
-        cell_widget = qt.QWidget()
-        lay_out = qt.QHBoxLayout(cell_widget)
-        lay_out.addWidget(cbox)
-        lay_out.setAlignment(qt.Qt.AlignCenter)
-        lay_out.setContentsMargins(0,0,0,0)
-        cell_widget.setLayout(lay_out)
-        self.tableWidget.setCellWidget(idx, 2, cell_widget)
+        # Verdict
+        verdict = qt.QComboBox()
+        for label, _ in VERDICT_CHOICES:
+            verdict.addItem(label)
+        verdict.setCurrentIndex(_choiceIndex(VERDICT_CHOICES,
+                                            entry.get('state', rev.UNREVIEWED)))
+        self.tableWidget.setCellWidget(idx, COL_VERDICT, verdict)
+        verdict.currentIndexChanged.connect(
+            functools.partial(self.onVerdictChanged, key=key, row=idx))
 
+        # Why it is not an aneurysm
+        reason = qt.QComboBox()
+        for label, _ in REASON_CHOICES:
+            reason.addItem(label)
+        reason.setCurrentIndex(_choiceIndex(REASON_CHOICES, entry.get('reason')))
+        reason.setEnabled(entry.get('state') == rev.REJECTED)
+        self.tableWidget.setCellWidget(idx, COL_REASON, reason)
+        reason.currentIndexChanged.connect(
+            functools.partial(self.onReasonChanged, key=key, row=idx))
 
         # Likert score
         lv = qt.QComboBox()
         for i in range(6):
             lv.addItem('-' if i == 0 else i)
-        lv.setCurrentIndex(d.get('Likert', det.LIKERT_UNSCORED))
-        self.tableWidget.setCellWidget(idx, 3, lv)
-        lv.currentIndexChanged.connect(lambda index: det.set_likert_score(d, index))
+        lv.setCurrentIndex(entry.get('likert') or det.LIKERT_UNSCORED)
+        self.tableWidget.setCellWidget(idx, COL_LIKERT, lv)
+        lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key))
 
-        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
-        cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
+        # Note
+        self.tableWidget.setItem(idx, COL_NOTE, qt.QTableWidgetItem(entry.get('note', '')))
 
-    def confirmAneurysm(self, state, detection):
-        detection['aneurysm']=bool(state)
+        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,
+                                                             COL_CONFIDENCE))
+        self.populatingTable = False
+
+    def onVerdictChanged(self, index, key, row):
+        if self.populatingTable:
+            return
+        state = VERDICT_CHOICES[index][1]
+        reasonCombo = self.tableWidget.cellWidget(row, COL_REASON)
+        reasonCombo.setEnabled(state == rev.REJECTED)
+        reason = REASON_CHOICES[reasonCombo.currentIndex][1] if state == rev.REJECTED else None
+        if not self.applyToReview(
+                functools.partial(rev.set_state, self.review, key, state, now(), reason)):
+            return
+        if state != rev.REJECTED and reasonCombo.currentIndex != 0:
+            # The reason no longer applies; the record has already dropped it.
+            wasBlocked = reasonCombo.blockSignals(True)
+            reasonCombo.setCurrentIndex(0)
+            reasonCombo.blockSignals(wasBlocked)
+
+    def onReasonChanged(self, index, key, row):
+        if self.populatingTable:
+            return
+        state = VERDICT_CHOICES[self.tableWidget.cellWidget(row, COL_VERDICT).currentIndex][1]
+        self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(),
+                                             REASON_CHOICES[index][1]))
+
+    def onLikertChanged(self, index, key):
+        if self.populatingTable:
+            return
+        score = None if index == det.LIKERT_UNSCORED else index
+        self.applyToReview(functools.partial(rev.set_likert, self.review, key, score, now()))
+
+    def onNoteEdited(self, item):
+        if self.populatingTable or item.column() != COL_NOTE:
+            return
+        detection = self.detections[item.row()]
+        self.applyToReview(functools.partial(rev.set_note, self.review,
+                                             detection[det.SOURCE_KEY], item.text(), now()))
+
+    def onSignOff(self):
+        """Finish the case, or reopen a finished one.
+
+        Sign-off is what tells whatever reads the review that it is looking at a complete
+        read, so it is refused while any candidate is undecided — and reopening is a recorded
+        amendment rather than a silent edit.
+        """
+        if not self.review:
+            slicer.util.warningDisplay("Open a case first: there is no review to sign off.")
+            return
+
+        if self.review['review']['state'] == rev.SIGNED_OFF:
+            reason = qt.QInputDialog.getText(None, "Reopen this case",
+                                             "Why is the review being amended?")
+            if not reason:
+                return
+            if self.applyToReview(functools.partial(rev.reopen, self.review, now(), reason)):
+                self.setReviewEditable(True)
+            return
+
+        if not self.applyToReview(functools.partial(rev.sign_off, self.review, now())):
+            return
+        self.setReviewEditable(False)
+        slicer.util.infoDisplay(f"Case signed off by {self.review['review']['reviewer']}.")
+
+    def setReviewEditable(self, editable):
+        """Lock the verdicts of a signed-off case, or unlock them after a reopen."""
+        for row in range(self.tableWidget.rowCount):
+            for column in (COL_VERDICT, COL_LIKERT):
+                widget = self.tableWidget.cellWidget(row, column)
+                if widget:
+                    widget.setEnabled(editable)
+            reason = self.tableWidget.cellWidget(row, COL_REASON)
+            if reason:
+                # A reason is only ever offered for a rejected candidate.
+                reason.setEnabled(editable and self._rowIsRejected(row))
+            note = self.tableWidget.item(row, COL_NOTE)
+            if note:
+                if editable:
+                    note.setFlags(note.flags() | qt.Qt.ItemIsEditable)
+                else:
+                    note.setFlags(note.flags() & ~qt.Qt.ItemIsEditable)
+
+    def _rowIsRejected(self, row):
+        verdict = self.tableWidget.cellWidget(row, COL_VERDICT)
+        return bool(verdict) and VERDICT_CHOICES[verdict.currentIndex][1] == rev.REJECTED
 
     def onRowSelected(self, item):
         self.selected_detection  = item.row() if not isinstance(item, int) else item
 
+        # Leaving a row is where the angle it was left at reaches the disk: the slider itself
+        # changes it far too often to write out every time.
+        self.saveReview()
         self.updateObjectsDisplay()
         self.prepare_slices()
 
@@ -627,6 +912,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.removeAnnotationNodes()
 
         detection = det.from_points(p1, p2)
+        if self.review:
+            # Its key comes from the review, which owns the reviewer's own findings: the
+            # detection file is the detector's and is never written to.
+            key = rev.add_detection(self.review, detection['P1'], detection['P2'], now())
+            detection[det.SOURCE_KEY] = key
+            self.saveReview()
         self.detections.append(detection)
         self.add_detection_to_table(detection)
         self.add_detection_to_scene(detection)
@@ -680,17 +971,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    def save(self):
-        dialog = qt.QFileDialog()
-        filename = str(dialog.getSaveFileName(None,"Save detections","","JSON files (*.json)"))
-        if filename:
-            # Same treatment as a failed load: an unwritable path or a stale network mount
-            # must reach the reviewer, not just the Python console.
-            try:
-                det.save(filename, self.detections)
-            except OSError as e:
-                slicer.util.errorDisplay(det.describe_save_failure(filename, e))
-
     def reset(self):
         for node in self.spheres:
             slicer.mrmlScene.RemoveNode(node)
@@ -732,8 +1012,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
         self.volProp = None
 
+        # The review file itself stays on disk: it is the record of what was decided, and
+        # Clean means "clear the screen", not "unsay it".
+        self.review = None
+        self.reviewPath = None
+        self.autosaveFailed = False
+
+        self.populatingTable = True
         self.tableWidget.setRowCount(0)
         self.tableWidget.setCurrentItem(None)
+        self.populatingTable = False
+        self.updateProgress()
         self.onRowSelected(-1)
 
     def clearScene(self):
@@ -785,6 +1074,10 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_detections_become_scene_nodes()
         self.test_selecting_a_row_aligns_the_red_slice()
         self.test_a_hand_placed_annotation_becomes_a_detection()
+        self.test_a_verdict_reaches_the_review_file_without_being_asked_to()
+        self.test_a_case_cannot_be_signed_off_until_every_candidate_is_decided()
+        self.test_a_case_is_resumed_exactly_as_it_was_left()
+        self.test_a_case_whose_review_cannot_be_read_is_not_opened()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -840,6 +1133,149 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # The temporary placement node and its preview sphere are gone.
         self.assertIsNone(widget.tmpMark)
         self.assertIsNone(widget.tmpSphere)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def _buildCase(self):
+        """Write a patient-shaped directory: one volume, one detection file.
+
+        The same thing load_files finds behind the directory dialog, which the tests cannot
+        open — so they call load_detections and startReview the way it does.
+        """
+        directory = Path(slicer.util.tempDirectory()) / 'case'
+        directory.mkdir()
+        volume = self._addTestVolume()
+        self.assertTrue(slicer.util.saveNode(volume, str(directory / 'angio.nii.gz')))
+        (directory / 'detections.json').write_text(self._samplePath().read_text())
+        return directory
+
+    def _openCase(self, widget, directory):
+        self.assertTrue(widget.load_detections(directory / 'detections.json'))
+        self.assertTrue(widget.startReview(directory, directory / 'angio.nii.gz',
+                                           directory / 'detections.json'))
+        widget.create_spheres()
+        for d in widget.detections:
+            widget.add_detection_to_table(d)
+        widget.updateProgress()
+
+    def _reviewFile(self, directory):
+        return directory / rev.file_name(reviewerName())
+
+    def _setVerdict(self, widget, row, label):
+        """Pick a verdict the way the reviewer does, through the combo's signal."""
+        index = next(i for i, (text, _) in enumerate(VERDICT_CHOICES) if text == label)
+        widget.tableWidget.cellWidget(row, COL_VERDICT).setCurrentIndex(index)
+
+    def test_a_verdict_reaches_the_review_file_without_being_asked_to(self):
+        self.delayDisplay('A verdict is recorded, with its reason, and autosaved')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        # The review exists from the moment the case is opened, with nothing decided.
+        onDisk = rev.load(self._reviewFile(directory))
+        self.assertEqual(len(rev.undecided_keys(onDisk)), 3)
+        self.assertEqual(onDisk['source']['detectionFile'], 'detections.json')
+        self.assertEqual(onDisk['review']['reviewer'], reviewerName())
+
+        key = widget.detections[0][det.SOURCE_KEY]
+        self._setVerdict(widget, 0, 'No')
+        widget.tableWidget.cellWidget(0, COL_REASON).setCurrentIndex(1)  # infundibulum
+
+        # No save was asked for: the file already says so.
+        onDisk = rev.load(self._reviewFile(directory))
+        self.assertEqual(rev.entry(onDisk, key)['state'], rev.REJECTED)
+        self.assertEqual(rev.entry(onDisk, key)['reason'], 'infundibulum')
+        # And the candidates nobody looked at are still telling the truth about themselves.
+        self.assertEqual(len(rev.undecided_keys(onDisk)), 2)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_a_case_cannot_be_signed_off_until_every_candidate_is_decided(self):
+        self.delayDisplay('Sign-off waits for the last undecided candidate')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        self._setVerdict(widget, 0, 'Yes')
+        widget.onSignOff()  # refused: two candidates are still undecided
+        self.assertEqual(rev.load(self._reviewFile(directory))['review']['state'],
+                         rev.IN_REVIEW)
+
+        self._setVerdict(widget, 1, 'No')
+        self._setVerdict(widget, 2, 'Not assessable')
+        widget.onSignOff()
+
+        onDisk = rev.load(self._reviewFile(directory))
+        self.assertEqual(onDisk['review']['state'], rev.SIGNED_OFF)
+        self.assertIsNotNone(onDisk['review']['signedOffAt'])
+        # A finished case does not accept more verdicts without a recorded reopen.
+        self.assertFalse(widget.tableWidget.cellWidget(0, COL_VERDICT).enabled)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_a_case_is_resumed_exactly_as_it_was_left(self):
+        self.delayDisplay('Reopening a case restores its verdicts and its own findings')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        key = widget.detections[0][det.SOURCE_KEY]
+        self._setVerdict(widget, 0, 'Yes')
+        widget.tableWidget.cellWidget(0, COL_LIKERT).setCurrentIndex(4)
+        widget.onRowSelected(0)
+        widget.rotateAxisSlider(35)
+
+        # An aneurysm the detector missed, added the way the reviewer adds one.
+        widget.prepareAnnotationNode()
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 6.0])
+        widget.validateAnnotation()
+        addedKey = widget.detections[-1][det.SOURCE_KEY]
+
+        # Close the case the way Clean does, then open it again.
+        widget.reset()
+        self.assertEqual(widget.detections, [])
+        self._openCase(widget, directory)
+
+        self.assertEqual(len(widget.detections), 4)
+        self.assertEqual(rev.entry(widget.review, key)['state'], rev.CONFIRMED)
+        self.assertEqual(rev.entry(widget.review, key)['likert'], 4)
+        self.assertEqual(rev.entry(widget.review, key)['viewAngle'], 35)
+        # The reviewer's own finding is back, with its verdict and its geometry.
+        self.assertEqual(widget.detections[-1][det.SOURCE_KEY], addedKey)
+        self.assertEqual(rev.entry(widget.review, addedKey)['state'], rev.CONFIRMED)
+        self.assertEqual(widget.detections[-1]['P2'], [10.0, 0.0, 6.0])
+        # ...including in the views and the table, not only in the record.
+        self.assertEqual(len(widget.spheres), 4)
+        self.assertEqual(widget.tableWidget.rowCount, 4)
+        # And the table shows what was decided rather than a fresh set of defaults.
+        self.assertEqual(widget.tableWidget.cellWidget(0, COL_VERDICT).currentIndex,
+                         [s for _, s in VERDICT_CHOICES].index(rev.CONFIRMED))
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_a_case_whose_review_cannot_be_read_is_not_opened(self):
+        self.delayDisplay('An unreadable review is never overwritten')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._reviewFile(directory).write_text('{ this is not a review')
+
+        self.assertTrue(widget.load_detections(directory / 'detections.json'))
+        self.assertFalse(widget.startReview(directory, directory / 'angio.nii.gz',
+                                            directory / 'detections.json'))
+        self.assertIsNone(widget.review)
+        # Still exactly as it was: starting a second review over it would be the one
+        # unrecoverable thing here.
+        self.assertEqual(self._reviewFile(directory).read_text(), '{ this is not a review')
 
         widget.reset()
         self.delayDisplay('Passed')

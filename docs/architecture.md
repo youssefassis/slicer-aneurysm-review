@@ -10,7 +10,9 @@ ReformatViz/
 ├── ReformatVizLib/         the Slicer-free core
 │   ├── detections.py       the detection record: schema, validation, JSON I/O
 │   ├── geometry.py         the reformatting maths, in RAS millimetres
-│   └── rendering.py        colour conversion and the opacity ramp
+│   ├── jsonio.py           UTF-8 reads, atomic writes, file digests
+│   ├── rendering.py        colour conversion and the opacity ramp
+│   └── review.py           the review record: verdicts, sign-off, audit trail
 ├── Resources/UI/           the Qt Designer layout
 └── Testing/Python/         build-time test scaffolding
 ```
@@ -83,6 +85,31 @@ tears all five down together. There is no per-detection removal path, and nothin
 deletes a single detection — which is what makes the positional scheme survivable. Adding
 deletion means threading it through all five collections plus the table rows, which is why
 replacing this with an object that owns its own nodes is the obvious next refactor.
+
+### The review
+
+`self.review` is the review record for the case on screen — a plain dict owned by
+`ReformatVizLib/review.py` and documented in [`review-format.md`](review-format.md) — and
+`self.reviewPath` is where it is written. Both are `None` when no case is open, which is what
+makes every recording path a no-op rather than a crash.
+
+It is the **single source of truth for what the reviewer decided**. The table's cell widgets
+are populated from it (`add_detection_to_table` reads `reviewEntry(d)`) and write back to it
+through `applyToReview`, which autosaves after every change. The in-memory detection dicts keep
+`viewAngle` as display state because `prepare_slices` reads it, and it is mirrored into the
+review; nothing else about a verdict lives in them any more.
+
+`detection[det.SOURCE_KEY]` is the join between the two: the key the producer filed the
+detection under, and the key its review entry sits at. Aneurysms the reviewer adds exist only
+in the review, under generated `added_<n>` keys, and `restoreAddedDetections()` puts them back
+on `self.detections` when a case is resumed — the detection file is the detector's and is never
+written to.
+
+Two ordering traps live here. Cell widgets emit `currentIndexChanged` while they are being
+populated, which would record the defaults over the verdicts just restored, so
+`self.populatingTable` guards every handler. And the note cells are ordinary items, so their
+signal is connected once at the table level rather than per row (`onNoteEdited` filters by
+column) — the same accumulation trap as the row-selection signal.
 
 ### Selection
 

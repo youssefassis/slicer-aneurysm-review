@@ -106,9 +106,15 @@ MOD="$PWD/ReformatViz"
 The process exits non-zero if a test fails, so this is usable as a gate. Note `--testing`:
 without it `errorDisplay`/`warningDisplay` open modal dialogs and the run blocks forever.
 
-The four cases cover the module loading, a detection file becoming scene nodes, the Red slice
-being reformatted onto a selected detection, and the widget resetting itself when the scene is
-closed.
+The cases cover the module loading, a detection file becoming scene nodes, the Red slice being
+reformatted onto a selected detection, two placed points becoming a detection, the widget
+resetting itself when the scene is closed, and the review paths: a verdict reaching the file
+without being asked to, sign-off waiting for the last undecided candidate, a case resuming as
+it was left, and an unreadable review never being overwritten.
+
+The review cases build their own case directory — a volume saved by Slicer plus the sample
+detection file — and call `load_detections` and `startReview` the way `load_files` does, since
+the directory dialog cannot be opened from a test.
 
 It reads `tests/data/detections_sample.json` from the source tree and skips those cases if
 run from an installed extension where that file is absent. It builds its own small synthetic
