@@ -1,9 +1,7 @@
+import functools
 import os
-import json
 
 import numpy as np
-import math
-import functools
 
 import vtk, qt
 import vtkmodules
@@ -14,44 +12,19 @@ import slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
-
-eps=np.finfo(np.float64).resolution
+# The Slicer-free core: geometry, detection file format and display maths. See
+# ReformatVizLib/__init__.py for why the boundary exists.
+from ReformatVizLib import detections as det
+from ReformatVizLib import geometry, rendering
 
 tmp_markups_name='P'
-
-def rotate2Z(v):
-    v=np.array(v)
-    tn=v@v # tiny bit faster that np.dot(v,v)
-    if tn<eps:
-        return np.eye(3,dtype=np.float64)
-
-    vn=v/math.sqrt(tn)
-    R1=np.array([ -vn[1], vn[0], 0])
-    tn=R1@R1
-
-    if tn<eps:
-        return np.eye(3, dtype=np.float64)
-
-    R1 = (1.0/math.sqrt(tn)) * np.array(R1, dtype=np.float64)
-    tn = math.sqrt(1-vn[2]*vn[2])
-
-    R0 = [ vn[0]*vn[2]/tn, vn[1]*vn[2]/tn, -tn ]
-
-    return np.array([R0,R1,vn],dtype=np.float64)
-
-def toRGB(color):
-    """Convert a QColor to the 0-1 RGB triplet that VTK/MRML display nodes expect."""
-    return (color.red()/255, color.green()/255, color.blue()/255)
 
 def makeScalarOpacity():
     scalarOpacity = vtkPiecewiseFunction()
     scalarOpacity.AllowDuplicateScalarsOn()
     scalarOpacity.RemoveAllPoints()
-    scalarOpacity.AddPoint(0.0,0.0)
-    scalarOpacity.AddPoint(1.0, 0.0)
-    scalarOpacity.AddPoint(2.0,1.0)
-    scalarOpacity.AddPoint(3.0,1.0)
-    scalarOpacity.AddPoint(4.0,1.0)
+    for x in range(rendering.SCALAR_OPACITY_POINT_COUNT):
+        scalarOpacity.AddPoint(float(x), 0.0)
     return scalarOpacity
 
 def createSphere(center, radius):
@@ -70,33 +43,6 @@ def createModel(model, name):
     node.GetDisplayNode().SetSliceIntersectionThickness(2)
     return node
 
-def addMissingDetectionInfo(d):
-    # assumes at least P1 and P2 are defined
-    P1=np.array(d['P1'])
-    P2=np.array(d['P2'])
-
-    if not 'confidence' in d:
-        d['confidence'] = 1
-    if not 'center' in d:
-        C=(P1+P2)/2
-        d['center'] = C.tolist()
-    if not 'radius' in d:
-        R=np.linalg.norm(P1-P2)/2
-        d['radius'] = R 
-    if not 'viewAngle' in d:
-        d['viewAngle'] = 0
-    if not 'aneurysm' in d:
-        d['aneurysm'] = False
-    
-    return d
-
-def setLikertScore(d, i):
-    if i==0:
-        d.pop('Likert',None)
-    else:
-        d['Likert'] = i
-    return d
-    
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
@@ -222,7 +168,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def set_volume_color(self, color=None):
-        color = toRGB(color if color is not None else self.ui.volumeColor.color)
+        color = rendering.to_rgb(color if color is not None else self.ui.volumeColor.color)
         if self.volNode:
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
             rangeCT = [0] * 2
@@ -234,20 +180,16 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def updateScalarOpacity(self):
         if self.volProp:
-            min_val = self.ui.volumeThreshold.minimum
-            max_val = self.ui.volumeThreshold.maximum
-            threshold=self.ui.volumeThreshold.value
-            opacity=self.ui.volumeOpacity.value
-            high_opacity=0 if self.ui.vol_translucent.checked else opacity
-            n=self.scalarOpacity.GetSize()
-            p=[[0,0,0.5,0] for _ in range(n)]
-            p[0][:2]=[min_val,0]
-            p[1][:2]=[threshold - self.margin,0]
-            p[2][:2]=[threshold,opacity]
-            p[3][:2]=[threshold + self.margin,high_opacity]
-            p[4][:2]=[max_val,high_opacity]
-            for i in range(n):
-                self.scalarOpacity.SetNodeValue(i, p[i])
+            points = rendering.scalar_opacity_points(
+                min_value=self.ui.volumeThreshold.minimum,
+                max_value=self.ui.volumeThreshold.maximum,
+                threshold=self.ui.volumeThreshold.value,
+                opacity=self.ui.volumeOpacity.value,
+                margin=self.margin,
+                translucent=self.ui.vol_translucent.checked,
+            )
+            for i, point in enumerate(points):
+                self.scalarOpacity.SetNodeValue(i, point)
             self.volProp.GetScalarOpacity().DeepCopy(self.scalarOpacity)
 
     def onVolumeThresholdChanged(self, value):
@@ -289,15 +231,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 roiNode.SetCenter(position_RAS)
                 roiNode.SetRadiusXYZ(radius)
             else:
-                image=self.volNode.GetImageData()
                 m=vtkmodules.vtkCommonMath.vtkMatrix4x4()
                 self.volNode.GetIJKToRASMatrix(m)
-                x,y,z=image.GetDimensions()
-                pmin=np.array(m.MultiplyDoublePoint((0,0,0,1)))
-                pmax=np.array(m.MultiplyDoublePoint((x,y,z,1)))
-                s=np.abs(pmin[:3]-pmax[:3])
+                extent=geometry.volume_extent(slicer.util.arrayFromVTKMatrix(m),
+                                              self.volNode.GetImageData().GetDimensions())
                 roiNode.SetCenter((0,0,0))
-                roiNode.SetSize(s.tolist())
+                roiNode.SetSize(extent.tolist())
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
             if displayNode:
                 displayNode.SetCroppingEnabled(True)
@@ -310,16 +249,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if node is not None:
             if self.detections and self.selected_detection >= 0:
                 self.detections[self.selected_detection]['viewAngle']=value
-            angle=value/180*np.pi
-            aneNormal = self.aneRz.T@np.array([math.cos(angle),math.sin(angle),0])
-            self.reformatLogic.SetSliceNormal(node, aneNormal)
+            self.reformatLogic.SetSliceNormal(node, geometry.slice_normal(self.aneRz, value))
+            # Read back the slice axes Slicer settled on, then roll in-plane so the
+            # aneurysm stays upright instead of tumbling as the reviewer rotates.
             m=node.GetSliceToRAS()
             sliceX=np.array(m.MultiplyDoublePoint([1,0,0,0]))[:3]
             sliceY=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
-            ca=sliceY@self.aneAxis
-            sa=sliceX@self.aneAxis
-            a=math.atan2(-sa,ca)/np.pi*180
-            self.reformatLogic.RotateSlice(node,2,a)
+            self.reformatLogic.RotateSlice(node,2,geometry.in_plane_roll_deg(sliceX,sliceY,self.aneAxis))
             self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
             
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen')
@@ -382,24 +318,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         self.add_detection_to_table(d)
                     
     def load_detections(self, file_path):
-        # Every detection is checked, not just the first one: addMissingDetectionInfo
-        # below derives center/radius from P1/P2 and would fail on a partial file.
+        # Parsing and validation live in ReformatVizLib; this method only turns a failure
+        # into something the reviewer sees. DetectionFormatError and json's decode error are
+        # both ValueError.
         try:
-            with open(file_path) as f:
-                data = json.load(f)
-            if not data:
-                raise ValueError('file holds no detection')
-            for key, d in data.items():
-                if 'P1' not in d or 'P2' not in d:
-                    raise ValueError(f"detection '{key}' has no 'P1'/'P2' position")
-            detections = list(data.values())
-        except (OSError, ValueError, TypeError, AttributeError) as e:
-            slicer.util.errorDisplay(f'No valid detection file found.\n\n{os.path.basename(file_path)}: {e}')
-            detections = []
-
-        self.detections = [addMissingDetectionInfo(d) for d in detections]
-        # sort by confidence score
-        self.detections.sort(key=lambda d: d['confidence'], reverse=True)
+            self.detections = det.load(file_path)
+        except (OSError, ValueError) as e:
+            slicer.util.errorDisplay(det.describe_load_failure(file_path, e))
+            self.detections = []
 
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
     def add_detection_to_table(self,d): 
@@ -411,14 +337,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.setHorizontalHeaderLabels(columns)
         
         # Confidence score
-        confidence = round(d['confidence']*100, 3)
-        itm = qt.QTableWidgetItem(str(confidence))
+        itm = qt.QTableWidgetItem(str(det.confidence_percent(d)))
         itm.setTextAlignment(4)
         self.tableWidget.setItem(idx, 0,  itm)
 
         # Diameter (mm)
-        size = round(d['radius']*2, 3)
-        itm = qt.QTableWidgetItem(str(size))
+        itm = qt.QTableWidgetItem(str(det.diameter(d)))
         itm.setTextAlignment(4)
         self.tableWidget.setItem(idx, 1,  itm)
 
@@ -439,7 +363,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             lv.addItem('-' if i == 0 else i)
         lv.setCurrentIndex(d['Likert'] if 'Likert' in d else 0)
         self.tableWidget.setCellWidget(idx, 3, lv)
-        lv.currentIndexChanged.connect(lambda index: setLikertScore(d, index))
+        lv.currentIndexChanged.connect(lambda index: det.set_likert_score(d, index))
 
         self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
         cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
@@ -522,7 +446,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.spheres[i].GetDisplayNode().SetVisibility(value)
 
     def set_spheres_color(self, color=None):
-        color = toRGB(color if color is not None else self.ui.SpheresColorPicker.color)
+        color = rendering.to_rgb(color if color is not None else self.ui.SpheresColorPicker.color)
         for i in range(len(self.detections)):
             self.spheres[i].GetDisplayNode().SetColor(color)
     
@@ -531,7 +455,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.spheres[i].GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
             
     def set_lines_color(self, color=None):
-        color = toRGB(color if color is not None else self.ui.LinesColorPicker.color)
+        color = rendering.to_rgb(color if color is not None else self.ui.LinesColorPicker.color)
         for i in range(len(self.detections)):
             self.lines[i].GetDisplayNode().SetColor(color)
 
@@ -542,7 +466,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_confidence_color(self, color=None):
         if self.confidences.GetDisplayNode():
-            color = toRGB(color if color is not None else self.ui.ConfidenceColorPicker.color)
+            color = rendering.to_rgb(color if color is not None else self.ui.ConfidenceColorPicker.color)
             self.confidences.GetDisplayNode().SetColor(color)
             self.confidences.GetDisplayNode().SetSelectedColor(color)
 
@@ -554,7 +478,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def set_markups_color(self, color=None):
         if self.ostia.GetDisplayNode() and self.domes.GetDisplayNode():
-            color = toRGB(color if color is not None else self.ui.MarkupsColorPicker.color)
+            color = rendering.to_rgb(color if color is not None else self.ui.MarkupsColorPicker.color)
             for markups in (self.ostia, self.domes):
                 markups.GetDisplayNode().SetColor(color)
                 markups.GetDisplayNode().SetSelectedColor(color)
@@ -566,27 +490,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.domes.SetNthControlPointVisibility(i,value)
     
     def prepare_slices (self):
-        if len(self.detections)==0 or self.selected_detection < 0: 
-            self.aneAxis=np.array([0.0,1.0,0.0])
-            #self.aneRz=np.eye(3)
-            self.aneOrigin=np.zeros(3)
+        if len(self.detections)==0 or self.selected_detection < 0:
+            self.aneAxis,self.aneOrigin,self.aneRz=geometry.default_frame()
             angleValue=0 # need to update slices
         else:
             d=self.detections[self.selected_detection]
+            self.aneAxis,self.aneOrigin,self.aneRz=geometry.aneurysm_frame(d["P1"],d["P2"])
+            angleValue = d['viewAngle']
 
-            A = np.array(d["P1"])
-            B = np.array(d["P2"])
-
-            self.aneAxis = B - A
-            n=np.linalg.norm(self.aneAxis)
-            if n > 1e-8:
-                self.aneAxis /= n
-            else:
-                self.aneAxis=np.array([0.0,1.0,0.0])
-            angleValue = d['viewAngle'] 
-            self.aneOrigin=(A+B)/2  
-            
-        self.aneRz=rotate2Z(self.aneAxis)
         self.reformatLogic = slicer.modules.reformat.logic()
 
         self.ui.rotateAxisSlider.value=angleValue    
@@ -609,14 +520,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             normal=np.array(m.MultiplyDoublePoint([0,0,1,0]))[:3]
             origin=np.array(m.MultiplyDoublePoint([0,0,0,1]))[:3]
         
-        # get camera distance
-        p=np.array(camera.GetPosition())
-        f=np.array(camera.GetFocalPoint())
-        d=np.linalg.norm(f-p)
-        new_p=origin-d*normal
+        # keep the current distance, only move the camera around the target
+        distance=np.linalg.norm(np.array(camera.GetFocalPoint())-np.array(camera.GetPosition()))
 
         camera.SetFocalPoint(origin.tolist())
-        camera.SetPosition(new_p.tolist())
+        camera.SetPosition(geometry.camera_position(origin,normal,distance).tolist())
         camera.SetViewUp(upaxis.tolist())
 
     
@@ -692,7 +600,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         "aneurysm": 1,
                         "added": 1
                         }
-            detection = addMissingDetectionInfo(detection)
+            detection = det.add_missing_info(detection)
             self.detections.append(detection)
             self.add_detection_to_table(detection)
             self.add_detection_to_scene(detection)    
@@ -722,13 +630,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     "aneurysm": 1,
                     "added": 1
                     }
-        detection = addMissingDetectionInfo(detection)
+        detection = det.add_missing_info(detection)
 
         self.tmpSphereSource = createSphere(detection['center'],detection['radius'])
         self.tmpSphere=createModel(self.tmpSphereSource, name=f'Tmp Sphere')
 
         self.tmpSphere.GetDisplayNode().SetVisibility(True)
-        color = toRGB(self.ui.SpheresColorPicker.color)
+        color = rendering.to_rgb(self.ui.SpheresColorPicker.color)
         self.tmpSphere.GetDisplayNode().SetColor(color)
         self.tmpSphere.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
 
@@ -755,8 +663,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         dialog = qt.QFileDialog()
         filename = str(dialog.getSaveFileName(None,"Save detections","","JSON files (*.json)"))
         if filename:
-            with open(filename, 'w') as f:
-                json.dump({str(i): x for i,x in enumerate(self.detections)},f, indent=2)
+            det.save(filename, self.detections)
 
     ##############################################################################################################   
     def reset(self):

@@ -2,8 +2,14 @@
 set(MODULE_NAME ReformatViz)
 
 #-----------------------------------------------------------------------------
+# ReformatVizLib is installed next to the module. Slicer puts the scripted-modules
+# directory on sys.path, so `from ReformatVizLib import geometry` resolves at runtime.
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
+  ReformatVizLib/__init__.py
+  ReformatVizLib/detections.py
+  ReformatVizLib/geometry.py
+  ReformatVizLib/rendering.py
   )
 
 set(MODULE_PYTHON_RESOURCES
