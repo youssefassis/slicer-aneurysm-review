@@ -695,8 +695,19 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ostia.RemoveAllControlPoints()
         self.domes.RemoveAllControlPoints()
         if self.volNode:
+            # The rendering display node and its volume property node outlive the volume, so
+            # every load/Clean cycle left a pair of them behind. volProp belongs to the
+            # property node: left set, the opacity sliders keep writing into a property whose
+            # node has been removed.
+            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+            if displayNode:
+                propertyNode = displayNode.GetVolumePropertyNode()
+                slicer.mrmlScene.RemoveNode(displayNode)
+                if propertyNode:
+                    slicer.mrmlScene.RemoveNode(propertyNode)
             slicer.mrmlScene.RemoveNode(self.volNode)
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
+        self.volProp = None
         roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
         for r in roiNode:
             slicer.mrmlScene.RemoveNode(r)
