@@ -25,12 +25,17 @@ def makeScalarOpacity():
         scalarOpacity.AddPoint(float(x), 0.0)
     return scalarOpacity
 
+# Enough to look round at the few millimetres these spheres span on screen. The mesh is
+# rebuilt on every mouse move while an annotation point is dragged, and one sphere is resident
+# per detection, so 100x100 (~10k points each) cost far more than it showed.
+SPHERE_RESOLUTION = 32
+
 def createSphere(center, radius):
     sphere = vtk.vtkSphereSource()
     sphere.SetCenter(center)
     sphere.SetRadius(radius)
-    sphere.SetPhiResolution(100)
-    sphere.SetThetaResolution(100)
+    sphere.SetPhiResolution(SPHERE_RESOLUTION)
+    sphere.SetThetaResolution(SPHERE_RESOLUTION)
     sphere.Update()
     return sphere
 
