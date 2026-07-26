@@ -382,26 +382,24 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         self.add_detection_to_table(d)
                     
     def load_detections(self, file_path):
+        # Every detection is checked, not just the first one: addMissingDetectionInfo
+        # below derives center/radius from P1/P2 and would fail on a partial file.
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path) as f:
                 data = json.load(f)
-            if not data: 
-                raise Exception()
-            first_item=data[next(iter(data))]
-            if not 'P1' in first_item or not 'P2' in first_item:
-                raise Exception()
-        except:
-            slicer.util.errorDisplay('No valid detection file found')
-            data={}
+            if not data:
+                raise ValueError('file holds no detection')
+            for key, d in data.items():
+                if 'P1' not in d or 'P2' not in d:
+                    raise ValueError(f"detection '{key}' has no 'P1'/'P2' position")
+            detections = list(data.values())
+        except (OSError, ValueError, TypeError, AttributeError) as e:
+            slicer.util.errorDisplay(f'No valid detection file found.\n\n{os.path.basename(file_path)}: {e}')
+            detections = []
 
+        self.detections = [addMissingDetectionInfo(d) for d in detections]
         # sort by confidence score
-        self.detections=[d for d in data.values()]
-
-        # add missing info
-        for d in self.detections:
-            addMissingDetectionInfo(d)
-
-        self.detections = sorted(self.detections, key=lambda x:x['confidence'], reverse=True)
+        self.detections.sort(key=lambda d: d['confidence'], reverse=True)
 
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
     def add_detection_to_table(self,d): 
