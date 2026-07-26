@@ -38,6 +38,17 @@ class TestRotate2Z:
     def test_scale_does_not_matter(self):
         assert geo.rotate2Z([1.0, 2.0, 3.0]) == pytest.approx(geo.rotate2Z([10.0, 20.0, 30.0]))
 
+    @pytest.mark.parametrize("v", [
+        [1e-7, 0.0, 1.0], [0.0, 1e-7, 1.0], [1e-7, 1e-7, 1.0], [1e-7, 0.0, -1.0],
+    ])
+    def test_stays_orthonormal_for_a_nearly_vertical_axis(self, v):
+        # sqrt(1 - vz**2) keeps almost no precision when |vz| is close to 1, which left the
+        # first row over 1% too long — so the "unit" slice normal handed to Slicer was not one.
+        R = geo.rotate2Z(v)
+        assert R @ R.T == pytest.approx(np.eye(3), abs=1e-12)
+        assert np.linalg.det(R) == pytest.approx(1.0, abs=1e-12)
+        assert np.linalg.norm(geo.slice_normal(R, 45)) == pytest.approx(1.0, abs=1e-12)
+
     def test_degenerate_vector_falls_back_to_identity(self):
         # A usable frame matters more than signalling the error: a zero-length axis means
         # P1 and P2 coincide, which prepare_slices already guards against.

@@ -40,10 +40,12 @@ def rotate2Z(v):
     if tn < EPS:
         return np.eye(3, dtype=np.float64)
 
-    R1 = (1.0 / math.sqrt(tn)) * np.array(R1, dtype=np.float64)
-    tn = math.sqrt(1 - vn[2] * vn[2])
-
-    R0 = [vn[0] * vn[2] / tn, vn[1] * vn[2] / tn, -tn]
+    # sqrt(tn) is sqrt(vn[0]**2 + vn[1]**2), which is the same quantity as sqrt(1 - vn[2]**2)
+    # but without the cancellation that costs that form nearly all its precision when the
+    # axis is close to vertical.
+    horizontal = math.sqrt(tn)
+    R1 = R1 / horizontal
+    R0 = [vn[0] * vn[2] / horizontal, vn[1] * vn[2] / horizontal, -horizontal]
 
     return np.array([R0, R1, vn], dtype=np.float64)
 
