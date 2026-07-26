@@ -56,6 +56,13 @@ change for whatever produces those files. See `docs/detection-format.md`.
   load does, and says the existing file was left unchanged.
 - Pressing **OK** with fewer than two annotation points placed did nothing at all and left
   **Add** greyed out; it now says what is missing.
+- Closing the scene from the File menu left the widget holding the three shared markups nodes
+  after they had been removed, so ostia, domes and confidence labels silently stopped appearing;
+  they are now recreated when needed. (Spheres and lines are still stale until **Clean** or the
+  next patient load — see the note in `docs/architecture.md`.)
+- The in-Slicer test asserted a slice origin that Slicer cannot honour in a scene with no
+  volume, so `ctest -R ReformatViz` had never passed; it now builds a synthetic volume and
+  checks every detection.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

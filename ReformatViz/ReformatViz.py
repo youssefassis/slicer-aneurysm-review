@@ -128,17 +128,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # slice thickness
         self.ui.thicknessSlider.valueChanged.connect(self.thicknessSlider)
 
-        self.ostia = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        self.ostia.SetName("Ostium")
-        self.ostia.SetLocked(True)
-        self.domes = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        self.domes.SetName("Dome")
-        self.domes.SetLocked(True)
+        self.ensureMarkupsNodes()
         self.spheres = []
         self.lines = []
-        self.confidences = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        self.confidences.SetName("Confidences")
-        self.confidences.SetLocked(True)
 
         self.patient_path = ''
         self.selected_detection = -1
@@ -418,6 +410,24 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.set_confidence_color()
         self.set_confidence_visibility()
 
+    def ensureMarkupsNodes(self):
+        """Create the three shared markups nodes, or replace them if they left the scene.
+
+        Closing the scene from the File menu removes them while this widget keeps its
+        references, and control points added to a node that is no longer in the scene go
+        nowhere: the ostia, domes and confidence labels silently stop appearing.
+        """
+        for attribute, name in (('ostia', 'Ostium'), ('domes', 'Dome'),
+                                ('confidences', 'Confidences')):
+            node = getattr(self, attribute, None)
+            if node is None or not slicer.mrmlScene.IsNodePresent(node):
+                node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+                node.SetName(name)
+                node.SetLocked(True)
+                setattr(self, attribute, node)
+            if not node.GetDisplayNode():
+                node.CreateDefaultDisplayNodes()
+
     def add_detection_to_scene(self,d):
         # Sphere
         sphere = createSphere(d['center'],d['radius'])
@@ -436,20 +446,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         m=createModel(line,name=f'Line_{idx}')
         self.lines.append(m)
 
-        # Confidence scores
-        if not self.confidences.GetDisplayNode():
-            self.confidences.CreateDefaultDisplayNodes()
+        self.ensureMarkupsNodes()
+
+        # Confidence score label, the ostium and the dome: the Nth control point of each
+        # belongs to detection N.
         n = self.confidences.AddControlPoint(d['center'])
-        self.confidences.SetNthControlPointLabel(n, str(round(d['confidence'] * 100, 3))+" %")
-
-        # Confidence scores
-        if not self.ostia.GetDisplayNode():
-            self.ostia.CreateDefaultDisplayNodes()
+        self.confidences.SetNthControlPointLabel(n, str(det.confidence_percent(d))+" %")
         self.ostia.AddControlPoint(d['P1'])
-
-        # Confidence scores
-        if not self.domes.GetDisplayNode():
-            self.domes.CreateDefaultDisplayNodes()
         self.domes.AddControlPoint(d['P2'])
 
     def set_spheres_visibility(self):
