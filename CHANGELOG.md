@@ -60,6 +60,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
   after they had been removed, so ostia, domes and confidence labels silently stopped appearing;
   they are now recreated when needed. (Spheres and lines are still stale until **Clean** or the
   next patient load — see the note in `docs/architecture.md`.)
+- The slice-thickness slider and **Center camera** assumed the Red slice node and a 3D view
+  exist, which is not true in a scene that has just been closed, nor in a headless session.
 - The in-Slicer test asserted a slice origin that Slicer cannot honour in a scene with no
   volume, so `ctest -R ReformatViz` had never passed; it now builds a synthetic volume and
   checks every detection.

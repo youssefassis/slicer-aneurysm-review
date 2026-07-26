@@ -273,6 +273,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def thicknessSlider(self,value):
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        if node is None:
+            return
         node.SetSlabReconstructionEnabled(1)
         node.SetSlabReconstructionType(1) # Max Intensity Projection
         node.SetSlabReconstructionThickness(value)
@@ -529,14 +531,19 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def centerCamera(self):
         # camera focal point
-        camera = slicer.app.layoutManager().threeDWidget(0).threeDView().displayableManagerByClassName('vtkMRMLCameraDisplayableManager').GetCameraWidget().GetCameraNode()
+        layoutManager = slicer.app.layoutManager()
+        threeDWidget = layoutManager.threeDWidget(0) if layoutManager else None
+        if threeDWidget is None:
+            return
+        camera = threeDWidget.threeDView().displayableManagerByClassName('vtkMRMLCameraDisplayableManager').GetCameraWidget().GetCameraNode()
 
-        if self.selected_detection < 0:
+        sliceNode = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        if self.selected_detection < 0 or sliceNode is None:
             upaxis=np.array([0,0,1])
             normal=np.array([0,-1,0])
             origin=np.array([0,0,0])
         else:
-            m=slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed').GetSliceToRAS()
+            m=sliceNode.GetSliceToRAS()
             upaxis=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
             normal=np.array(m.MultiplyDoublePoint([0,0,1,0]))[:3]
             origin=np.array(m.MultiplyDoublePoint([0,0,0,1]))[:3]
