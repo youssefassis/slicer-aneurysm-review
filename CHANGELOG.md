@@ -110,6 +110,10 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Removed
 
+- **The detection-file save path.** The module no longer writes the file it reviews: verdicts go
+  to the review file instead. `detections.save`, its failure message and `set_likert_score` are
+  gone with it, and `aneurysm` / `Likert` / `viewAngle` / `added` in a detection file are now
+  legacy fields that are read but never written — see `docs/detection-format.md`.
 - `getSphereCenterAndRadius`, plus the unused `logging` and `copy.deepcopy` imports.
 - The parameter-node scaffolding inherited from the module template. This module keeps no
   parameter node, so `initializeParameterNode` was an empty `return` and `enter`, `exit` and

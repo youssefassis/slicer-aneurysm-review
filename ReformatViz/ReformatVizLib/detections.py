@@ -1,9 +1,12 @@
 # Copyright the ReformatViz authors. Licensed under the Apache License, Version 2.0.
-"""The detection record: its schema, its validation, and its JSON file format.
+"""The detection record: its schema, its validation, and how it is read.
 
-A detection is a plain ``dict`` — the same object the reviewer's edits are written back
-into and the same object that gets serialised, so there is one representation and no
-conversion layer to keep in step.
+A detection is a plain ``dict``, so there is one representation and no conversion layer to
+keep in step.
+
+This module only ever **reads**. The file is the detector's output and the module does not
+write to it; what the reviewer decides goes to the review file instead, which is the only way
+a review can still say which candidates it was made about. See ``ReformatVizLib/review.py``.
 
 The file format is the contract with whatever produces the detections; it is documented in
 ``docs/detection-format.md``. Changing it is a breaking change for those producers.
@@ -28,7 +31,8 @@ POSITION_KEYS = (*REQUIRED_KEYS, "center")
 #: Keys holding a plain number, checked whenever they are present.
 NUMBER_KEYS = ("confidence", "radius", "viewAngle")
 
-#: Likert combo index meaning "not scored"; the key is absent rather than 0.
+#: The Likert combo's first row, meaning "not scored". The review records ``None`` for it;
+#: there is no score of zero.
 LIKERT_UNSCORED = 0
 
 #: Where :func:`load` records the key the producer filed a detection under. Derived, so any
@@ -77,15 +81,6 @@ def from_points(p1, p2):
         "aneurysm": 1,
         "added": 1,
     })
-
-
-def set_likert_score(d, index):
-    """Record a Likert combo index, removing the key entirely for "not scored"."""
-    if index == LIKERT_UNSCORED:
-        d.pop("Likert", None)
-    else:
-        d["Likert"] = index
-    return d
 
 
 def _is_number(value):
@@ -168,30 +163,9 @@ def sort_for_review(detections):
     return sorted(detections, key=lambda d: (d.get("added", 0), -d["confidence"]))
 
 
-def save(path, detections):
-    """Write ``detections`` to ``path``, keyed by their position in the review table.
-
-    Note this is *not* the shape that was read: input keys are the producer's names, output
-    keys are ``"0"``, ``"1"``, ... in table order. See ``docs/detection-format.md``.
-
-    The write is atomic — see :func:`jsonio.write_json` for why that matters here.
-    """
-    jsonio.write_json(path, {str(i): d for i, d in enumerate(detections)})
-
-
 def describe_load_failure(path, error):
     """Return the message shown to the reviewer when :func:`load` fails."""
     return f"No valid detection file found.\n\n{Path(path).name}: {error}"
-
-
-def describe_save_failure(path, error):
-    """Return the message shown to the reviewer when :func:`save` fails.
-
-    The previous file is still intact — see :func:`save` — which is the useful thing to say
-    to someone who has just tried to write over a review they care about.
-    """
-    return ("Saving the detections failed. The existing file has been left unchanged."
-            f"\n\n{Path(path).name}: {error}")
 
 
 def confidence_percent(d):

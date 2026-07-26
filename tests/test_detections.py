@@ -74,18 +74,6 @@ class TestFromPoints:
         assert det.validate({"hand-placed": d}) == [d]
 
 
-class TestLikertScore:
-    def test_index_zero_removes_the_key_rather_than_storing_zero(self):
-        # An absent key means "not scored"; a stored 0 would be a score of zero.
-        assert "Likert" not in det.set_likert_score({"Likert": 3}, det.LIKERT_UNSCORED)
-
-    def test_stores_the_index_as_the_score(self):
-        assert det.set_likert_score({}, 4)["Likert"] == 4
-
-    def test_clearing_an_unscored_detection_is_harmless(self):
-        assert det.set_likert_score({}, det.LIKERT_UNSCORED) == {}
-
-
 class TestValidate:
     def test_accepts_the_sample_file(self):
         assert len(det.validate(json.loads(SAMPLE.read_text()))) == 3
@@ -233,79 +221,6 @@ class TestSourceKey:
         path = write(tmp_path, {"broken": 5})
         with pytest.raises(det.DetectionFormatError, match="broken"):
             det.load(path)
-
-
-class TestSave:
-    def test_rekeys_by_table_position_not_by_the_producers_names(self, tmp_path):
-        # Documented in docs/detection-format.md: input keys are not preserved.
-        out = tmp_path / "out.json"
-        det.save(out, det.load(SAMPLE))
-        assert list(json.loads(out.read_text())) == ["0", "1", "2"]
-
-    def test_round_trips_without_losing_or_reordering_detections(self, tmp_path):
-        original = det.load(SAMPLE)
-        out = tmp_path / "out.json"
-        det.save(out, original)
-        reloaded = det.load(out)
-        # Everything survives except the producer's key, which save rekeys by table position
-        # on the way out — one of the reasons a review does not belong in this file.
-        assert [{k: v for k, v in d.items() if k != det.SOURCE_KEY} for d in reloaded] == \
-               [{k: v for k, v in d.items() if k != det.SOURCE_KEY} for d in original]
-        assert [d[det.SOURCE_KEY] for d in reloaded] == ["0", "1", "2"]
-
-    def test_unknown_producer_fields_are_preserved(self, tmp_path):
-        # Documented as a guarantee: a producer can carry its own metadata through a review.
-        source = write(tmp_path, {"a": {"P1": [0, 0, 0], "P2": [2, 0, 0],
-                                        "modelVersion": "v3", "seriesUID": "1.2.840"}})
-        out = tmp_path / "out.json"
-        det.save(out, det.load(source))
-        saved = json.loads(out.read_text())["0"]
-        assert saved["modelVersion"] == "v3"
-        assert saved["seriesUID"] == "1.2.840"
-
-    def test_a_failed_save_leaves_the_existing_file_untouched(self, tmp_path):
-        # The reviewer's natural move is to save over the file they loaded, so a write that
-        # fails part-way through would destroy the previous session's verdicts.
-        out = tmp_path / "out.json"
-        det.save(out, det.load(SAMPLE))
-        before = out.read_bytes()
-
-        unserialisable = det.load(SAMPLE)
-        unserialisable[0]["producerBlob"] = {1, 2}  # a set is not JSON
-        with pytest.raises(TypeError):
-            det.save(out, unserialisable)
-
-        assert out.read_bytes() == before
-        assert list(tmp_path.iterdir()) == [out], "the temporary file must not be left behind"
-
-    def test_reads_a_utf8_file_and_round_trips_its_text(self, tmp_path):
-        # JSON is UTF-8 by definition, but open() without an encoding uses the platform
-        # locale, so an accented producer field failed to load on a cp1252 Windows machine.
-        source = tmp_path / "utf8.json"
-        source.write_bytes(json.dumps(
-            {"a": {"P1": [0, 0, 0], "P2": [2, 0, 0], "note": "artère communicante"}},
-            ensure_ascii=False,
-        ).encode("utf-8"))
-        out = tmp_path / "out.json"
-        det.save(out, det.load(source))
-        assert det.load(out)[0]["note"] == "artère communicante"
-
-    def test_failure_message_names_the_file_and_the_cause(self, tmp_path):
-        target = tmp_path / "absent-directory" / "out.json"
-        with pytest.raises(OSError) as raised:
-            det.save(target, det.load(SAMPLE))
-        message = det.describe_save_failure(target, raised.value)
-        assert "out.json" in message
-        assert "left unchanged" in message
-
-    def test_reviewer_verdicts_survive_the_round_trip(self, tmp_path):
-        detections = det.load(SAMPLE)
-        det.set_likert_score(detections[0], 5)
-        detections[0]["aneurysm"] = True
-        out = tmp_path / "out.json"
-        det.save(out, detections)
-        assert det.load(out)[0]["Likert"] == 5
-        assert det.load(out)[0]["aneurysm"] is True
 
 
 class TestTableFormatting:
