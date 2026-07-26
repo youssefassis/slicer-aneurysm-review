@@ -818,6 +818,22 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         path = os.path.join(os.path.dirname(__file__), '..', 'tests', 'data', 'detections_sample.json')
         return os.path.normpath(path)
 
+    def _addTestVolume(self):
+        """Add a synthetic 1 mm volume large enough to contain every sample detection.
+
+        The reformatting cannot be checked in an empty scene: with no background volume the
+        slice logic leaves the Red slice at the world origin whatever origin is asked for.
+        Building the volume here keeps the test free of any download.
+        """
+        ijkToRAS = np.eye(4)
+        ijkToRAS[:3, 3] = [-64.0, -64.0, -64.0]
+        array = np.zeros((128, 128, 128), dtype=np.int16)
+        array[32:96, 32:96, 32:96] = 400
+        volume = slicer.util.addVolumeFromArray(array, ijkToRAS=ijkToRAS,
+                                                name='ReformatVizTestVolume')
+        slicer.util.setSliceViewerLayers(background=volume, fit=True)
+        return volume
+
     def test_module_loads(self):
         self.delayDisplay('Module loads and builds its widget')
         widget = self._widget()
@@ -860,19 +876,24 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             self.delayDisplay(f'Skipped: no sample data at {sample}')
             return
 
+        widget.volNode = self._addTestVolume()
         widget.load_detections(sample)
         widget.create_spheres()
-        widget.onRowSelected(0)
 
         sliceNode = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
-        m = sliceNode.GetSliceToRAS()
-        normal = np.array(m.MultiplyDoublePoint([0, 0, 1, 0]))[:3]
-        origin = np.array(m.MultiplyDoublePoint([0, 0, 0, 1]))[:3]
+        for row in range(len(widget.detections)):
+            widget.onRowSelected(row)
+            m = slicer.util.arrayFromVTKMatrix(sliceNode.GetSliceToRAS())
+            normal, origin, sliceY = m[:3, 2], m[:3, 3], m[:3, 1]
 
-        # The invariant the reformatting exists for: the slice contains the aneurysm axis
-        # and is centred on it.
-        self.assertAlmostEqual(float(normal @ widget.aneAxis), 0.0, places=6)
-        np.testing.assert_allclose(origin, widget.aneOrigin, atol=1e-6)
+            # The three invariants the reformatting exists for: the slice contains the
+            # aneurysm axis, it passes through the aneurysm, and the axis points along slice
+            # +Y so it stays upright rather than tumbling. Measure the distance to the plane
+            # rather than to the point, because Slicer may slide the origin along the normal
+            # when it snaps the slice to the voxel grid.
+            self.assertAlmostEqual(float(normal @ widget.aneAxis), 0.0, places=6)
+            self.assertLess(abs(float((widget.aneOrigin - origin) @ normal)), 1.0)
+            self.assertAlmostEqual(float(sliceY @ widget.aneAxis), 1.0, places=3)
 
         widget.reset()
         self.delayDisplay('Passed')
