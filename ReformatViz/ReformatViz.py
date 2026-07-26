@@ -2,20 +2,18 @@ import functools
 import os
 
 import numpy as np
-
-import vtk, qt
-import vtkmodules
-from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
-
-
+import qt
 import slicer
-from slicer.ScriptedLoadableModule import *
-from slicer.util import VTKObservationMixin
+import vtk
+import vtkmodules
 
 # The Slicer-free core: geometry, detection file format and display maths. See
 # ReformatVizLib/__init__.py for why the boundary exists.
 from ReformatVizLib import detections as det
 from ReformatVizLib import geometry, rendering
+from slicer.ScriptedLoadableModule import *
+from slicer.util import VTKObservationMixin
+from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
 
 tmp_markups_name='P'
 
@@ -35,7 +33,7 @@ def createSphere(center, radius):
     sphere.SetThetaResolution(100)
     sphere.Update()
     return sphere
-       
+
 def createModel(model, name):
     node = slicer.modules.models.logic().AddModel(model.GetOutput())
     node.SetName(name)
@@ -113,12 +111,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.cleanButton.connect('clicked(bool)', self.reset)
 
         # slices visibility
-        self.ui.axialVisibility.stateChanged.connect(self.set_axial_slice_visibility)    
-        
+        self.ui.axialVisibility.stateChanged.connect(self.set_axial_slice_visibility)
+
         # Slider: Rotate around axis
         self.ui.rotateAxisSlider.valueChanged.connect(self.rotateAxisSlider)
         self.ui.centerCamera.clicked.connect(self.centerCamera)
-        
+
         # slice thickness
         self.ui.thicknessSlider.valueChanged.connect(self.thicknessSlider)
 
@@ -137,7 +135,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.patient_path = ''
         self.selected_detection = -1
         self.detections = []
-    
+
         self.tmpMark : slicer.vtkMRMLMarkupsFiducialNode = None
         self.tmpSphereSource : slicer.vtkSphereSource = None
         self.tmpSphere : slicer.vtkMRMLModelNode = None
@@ -145,12 +143,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
         self.volProp : vtkmodules.vtkRenderingCore.vtkVolumeProperty=None
         self.scalarOpacity=makeScalarOpacity()
-    
+
         self.margin=20
 
         self.prepare_slices()
-        
-        
+
+
         self.tableWidget = qt.QTableWidget()
         # self.tableWidget.setMaximumHeight(150)
         columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
@@ -177,7 +175,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             colorTransferFunction.AddRGBPoint(rangeCT[0], color[0], color[1], color[2])
             colorTransferFunction.AddRGBPoint(rangeCT[1], color[0], color[1], color[2])
             displayNode.GetVolumePropertyNode().SetColor(colorTransferFunction)
-    
+
     def updateScalarOpacity(self):
         if self.volProp:
             points = rendering.scalar_opacity_points(
@@ -193,7 +191,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.volProp.GetScalarOpacity().DeepCopy(self.scalarOpacity)
 
     def onVolumeThresholdChanged(self, value):
-        self.updateScalarOpacity() 
+        self.updateScalarOpacity()
 
     def onVolumeOpacityChanged(self,value):
         self.updateScalarOpacity()
@@ -207,24 +205,24 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onCropChanged(self):
         roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
         if (not self.ui.cropBox.checked) or (not self.volNode):
-            if len(roiNode)>0: 
+            if len(roiNode)>0:
                 self.ui.cropVisBox.setChecked(False)
                 displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
-                if displayNode: 
+                if displayNode:
                     displayNode.SetCroppingEnabled(0)
                     # print("turn off ROI")
         else:
             self.ui.cropVisBox.setChecked(True)
             # print("turn on ROI")
             if len(roiNode) == 0:
-                # First time? then Create 
-                roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode") 
-                
+                # First time? then Create
+                roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode")
+
                 roiNode.GetDisplayNode().SetOpacity(0.05)
                 roiNode.GetDisplayNode().SetVisibility(True)
             else:
                 roiNode = roiNode[0]
-            roiNode.SetName('') # undisplay ROI name   
+            roiNode.SetName('') # undisplay ROI name
             if self.selected_detection >= 0:
                 position_RAS = self.detections[self.selected_detection]['center']
                 radius = [self.detections[self.selected_detection]['radius']*4 ] * 3
@@ -257,15 +255,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             sliceY=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
             self.reformatLogic.RotateSlice(node,2,geometry.in_plane_roll_deg(sliceX,sliceY,self.aneAxis))
             self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
-            
+
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen')
         if node is not None:
             self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow')
         if node is not None:
             self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
-        
-    
+
+
     def set_axial_slice_visibility(self):
         layoutManager = slicer.app.layoutManager()
         controller = layoutManager.sliceWidget("Red").sliceController()
@@ -295,10 +293,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 # volume renderings view
                 volRenLogic = slicer.modules.volumerendering.logic()
                 displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(self.volNode)
-                if not displayNode: 
+                if not displayNode:
                     displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
                 volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
-            
+
                 self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
 
                 # define the scalarOpacity function
@@ -307,7 +305,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.volumeThreshold.minimum = min_val
                 self.ui.volumeThreshold.value = (max_val+min_val)/3
                 self.updateScalarOpacity()
-                
+
                 self.ui.vol_visibility.checked = 1
 
                 # detections
@@ -316,7 +314,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.create_spheres()
                     for d in self.detections:
                         self.add_detection_to_table(d)
-                    
+
     def load_detections(self, file_path):
         # Parsing and validation live in ReformatVizLib; this method only turns a failure
         # into something the reviewer sees. DetectionFormatError and json's decode error are
@@ -328,14 +326,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.detections = []
 
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
-    def add_detection_to_table(self,d): 
+    def add_detection_to_table(self,d):
         idx=self.tableWidget.rowCount
         self.tableWidget.insertRow(idx)
         columns = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Likert']
         # needed here because columns headers require at least one row...
         self.tableWidget.setColumnCount(len(columns))
         self.tableWidget.setHorizontalHeaderLabels(columns)
-        
+
         # Confidence score
         itm = qt.QTableWidgetItem(str(det.confidence_percent(d)))
         itm.setTextAlignment(4)
@@ -361,13 +359,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         lv = qt.QComboBox()
         for i in range(6):
             lv.addItem('-' if i == 0 else i)
-        lv.setCurrentIndex(d['Likert'] if 'Likert' in d else 0)
+        lv.setCurrentIndex(d.get('Likert', det.LIKERT_UNSCORED))
         self.tableWidget.setCellWidget(idx, 3, lv)
         lv.currentIndexChanged.connect(lambda index: det.set_likert_score(d, index))
 
         self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
         cbox.stateChanged.connect(functools.partial(self.confirmAneurysm,det=d))
-    
+
     def confirmAneurysm(self, state, det):
         det['aneurysm']=bool(state)
 
@@ -383,18 +381,18 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateObjectsDisplay()
         if reset_view:
             self.prepare_slices()
-    
+
     def create_spheres(self):
-        
+
         for d in self.detections:
             self.add_detection_to_scene(d)
-        
+
         self.updateObjectsDisplay()
-        
+
     def updateObjectsDisplay(self):
         self.set_lines_color()
         self.set_lines_visibility()
-        
+
         self.set_spheres_color()
         self.set_spheres_opacity()
         self.set_spheres_visibility()
@@ -429,7 +427,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.confidences.CreateDefaultDisplayNodes()
         n = self.confidences.AddControlPoint(d['center'])
         self.confidences.SetNthControlPointLabel(n, str(round(d['confidence'] * 100, 3))+" %")
-        
+
         # Confidence scores
         if not self.ostia.GetDisplayNode():
             self.ostia.CreateDefaultDisplayNodes()
@@ -437,7 +435,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Confidence scores
         if not self.domes.GetDisplayNode():
-            self.domes.CreateDefaultDisplayNodes() 
+            self.domes.CreateDefaultDisplayNodes()
         self.domes.AddControlPoint(d['P2'])
 
     def set_spheres_visibility(self):
@@ -449,11 +447,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         color = rendering.to_rgb(color if color is not None else self.ui.SpheresColorPicker.color)
         for i in range(len(self.detections)):
             self.spheres[i].GetDisplayNode().SetColor(color)
-    
+
     def set_spheres_opacity(self):
         for i in range(len(self.detections)):
             self.spheres[i].GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
-            
+
     def set_lines_color(self, color=None):
         color = rendering.to_rgb(color if color is not None else self.ui.LinesColorPicker.color)
         for i in range(len(self.detections)):
@@ -482,13 +480,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             for markups in (self.ostia, self.domes):
                 markups.GetDisplayNode().SetColor(color)
                 markups.GetDisplayNode().SetSelectedColor(color)
-    
+
     def set_markups_visibility(self):
         for i in range(len(self.detections)):
             value = self.ui.MarkupsVisibility.checked if i == self.selected_detection  or self.selected_detection < 0 else False
             self.ostia.SetNthControlPointVisibility(i,value)
             self.domes.SetNthControlPointVisibility(i,value)
-    
+
     def prepare_slices (self):
         if len(self.detections)==0 or self.selected_detection < 0:
             self.aneAxis,self.aneOrigin,self.aneRz=geometry.default_frame()
@@ -500,14 +498,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.reformatLogic = slicer.modules.reformat.logic()
 
-        self.ui.rotateAxisSlider.value=angleValue    
+        self.ui.rotateAxisSlider.value=angleValue
         self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
         self.thicknessSlider(self.ui.thicknessSlider.value)
         self.centerCamera()
         self.onCropChanged()
 
     def centerCamera(self):
-        # camera focal point 
+        # camera focal point
         camera = slicer.app.layoutManager().threeDWidget(0).threeDView().displayableManagerByClassName('vtkMRMLCameraDisplayableManager').GetCameraWidget().GetCameraNode()
 
         if self.selected_detection < 0:
@@ -519,7 +517,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             upaxis=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
             normal=np.array(m.MultiplyDoublePoint([0,0,1,0]))[:3]
             origin=np.array(m.MultiplyDoublePoint([0,0,0,1]))[:3]
-        
+
         # keep the current distance, only move the camera around the target
         distance=np.linalg.norm(np.array(camera.GetFocalPoint())-np.array(camera.GetPosition()))
 
@@ -527,13 +525,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         camera.SetPosition(geometry.camera_position(origin,normal,distance).tolist())
         camera.SetViewUp(upaxis.tolist())
 
-    
+
     def set_volume_visibility(self):
         if self.volNode:
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
             if displayNode:
                 displayNode.SetVisibility(self.ui.vol_visibility.checked)
-    
+
     def set_volume_translucent(self):
         self.updateScalarOpacity()
 
@@ -560,21 +558,21 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.tmpMark = node
 
-    
+
     def addAnnotationNode(self):
         self.unselectAllRows(reset_view=False)
         if not self.tmpMark:
             self.prepareAnnotationNode(name="P")
-            
+
         slicer.modules.markups.logic().SetActiveList(self.tmpMark)
         slicer.modules.markups.logic().StartPlaceMode(1)
 
         self.ui.addButton.setEnabled(False)
         self.ui.okButton.setEnabled(True)
         self.ui.cancelButton.setEnabled(True)
-    
+
     def removeAnnotationNodes(self,caller=None, event=None):
-        if self.tmpMark:    
+        if self.tmpMark:
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
             slicer.mrmlScene.RemoveNode(self.tmpSphere)
@@ -591,19 +589,19 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         markups = self.tmpMark
         if markups and markups.GetNumberOfControlPoints() == 2:
             p1, p2 = np.empty(3), np.empty(3)
-            markups.GetNthControlPointPositionWorld(0, p1)        
+            markups.GetNthControlPointPositionWorld(0, p1)
             markups.GetNthControlPointPositionWorld(1, p2)
             self.removeAnnotationNodes()
 
             detection = {"P1": p1.tolist(),
-                        "P2": p2.tolist(), 
+                        "P2": p2.tolist(),
                         "aneurysm": 1,
                         "added": 1
                         }
             detection = det.add_missing_info(detection)
             self.detections.append(detection)
             self.add_detection_to_table(detection)
-            self.add_detection_to_scene(detection)    
+            self.add_detection_to_scene(detection)
             self.selected_detection = self.tableWidget.rowCount-1
             self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
             self.onRowSelected(self.selected_detection)
@@ -613,34 +611,35 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.cancelButton.setEnabled(False)
 
 
-###############################################################""    
+###############################################################""
     def drawAnnotationSpheres(self, caller=None, event=None):
         markups : slicer.vtkMRMLMarkupsFiducialNode = caller
         nb_points = markups.GetNumberOfControlPoints()
-        if nb_points < 2: return
-                
+        if nb_points < 2:
+            return
+
         slicer.modules.markups.logic().StartPlaceMode(0)
         markups.GetDisplayNode().SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeUnconstrained)
         p1, p2 = np.empty(3), np.empty(3)
-        markups.GetNthControlPointPositionWorld(0, p1)        
+        markups.GetNthControlPointPositionWorld(0, p1)
         markups.GetNthControlPointPositionWorld(1, p2)
-        
+
         detection = {"P1": p1.tolist(),
-                    "P2": p2.tolist(), 
+                    "P2": p2.tolist(),
                     "aneurysm": 1,
                     "added": 1
                     }
         detection = det.add_missing_info(detection)
 
         self.tmpSphereSource = createSphere(detection['center'],detection['radius'])
-        self.tmpSphere=createModel(self.tmpSphereSource, name=f'Tmp Sphere')
+        self.tmpSphere=createModel(self.tmpSphereSource, name='Tmp Sphere')
 
         self.tmpSphere.GetDisplayNode().SetVisibility(True)
         color = rendering.to_rgb(self.ui.SpheresColorPicker.color)
         self.tmpSphere.GetDisplayNode().SetColor(color)
         self.tmpSphere.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
 
- 
+
     def MoveSpheres(self, caller=None, event=None):
         markups : slicer.vtkMRMLMarkupsFiducial = caller
 
@@ -665,7 +664,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if filename:
             det.save(filename, self.detections)
 
-    ##############################################################################################################   
+    ##############################################################################################################
     def reset(self):
         for node in self.spheres:
             slicer.mrmlScene.RemoveNode(node)
@@ -682,15 +681,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
         for r in roiNode:
             slicer.mrmlScene.RemoveNode(r)
-        
+
         self.removeAnnotationNodes()
-        
+
         self.detections=[]
 
         self.tableWidget.setRowCount(0)
         self.tableWidget.setCurrentItem(None)
         self.onRowSelected(-1)
-    
+
     def clearScene(self):
         """
         Empty the scene. This module assumes it is the only owner of the scene:
@@ -743,5 +742,5 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
- 
+
         return
