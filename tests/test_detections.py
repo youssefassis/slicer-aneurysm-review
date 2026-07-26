@@ -72,10 +72,51 @@ class TestValidate:
         ({"a": {"P2": [1, 0, 0]}}, "'a' has no P1"),
         ({"a": {"P1": [0, 0, 0]}}, "'a' has no P2"),
         ({"a": {}}, "'a' has no P1 or P2"),
+        # A list happens to contain the strings "P1" and "P2", so the key-presence check alone
+        # let this through and it crashed later on `d["P1"]` with a list index TypeError.
+        ({"a": ["P1", "P2"]}, "expected an object"),
     ])
     def test_rejects_with_a_message_naming_the_problem(self, data, expected):
         with pytest.raises(det.DetectionFormatError, match=expected):
             det.validate(data)
+
+    @pytest.mark.parametrize("value", [
+        "oops",                       # a string, not a position
+        [0, 0],                       # too short
+        [0, 0, 0, 0],                 # too long
+        [0, 0, None],                 # a null coordinate
+        [0, 0, "x"],                  # a non-numeric coordinate
+        [0, 0, float("nan")],         # json accepts the NaN literal by default
+        [0, 0, float("inf")],
+        {"x": 0, "y": 0, "z": 0},     # an object instead of an array
+        None,
+    ])
+    def test_rejects_a_malformed_position(self, value):
+        # These used to escape validation and surface as a numpy TypeError or a broadcast
+        # error, which the GUI does not catch — the reviewer got a console traceback and an
+        # empty table instead of the dialog naming the entry.
+        for name in ("P1", "P2"):
+            data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0]}}
+            data["a"][name] = value
+            with pytest.raises(det.DetectionFormatError, match=f"'a' has a malformed {name}"):
+                det.validate(data)
+
+    @pytest.mark.parametrize("name", ["confidence", "radius", "viewAngle"])
+    @pytest.mark.parametrize("value", ["high", None, float("nan"), float("inf"), True, [1]])
+    def test_rejects_a_non_numeric_number_field(self, name, value):
+        data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0], name: value}}
+        with pytest.raises(det.DetectionFormatError, match=f"'a' has a non-numeric {name}"):
+            det.validate(data)
+
+    def test_rejects_a_malformed_center(self):
+        data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0], "center": [1, 2]}}
+        with pytest.raises(det.DetectionFormatError, match="'a' has a malformed center"):
+            det.validate(data)
+
+    def test_accepts_the_number_types_a_producer_actually_writes(self):
+        data = {"a": {"P1": [0, 0, 0], "P2": [1, 2, 3.5], "confidence": 1,
+                      "radius": 2.5, "viewAngle": -180, "aneurysm": True, "Likert": 4}}
+        assert len(det.validate(data)) == 1
 
     def test_a_single_bad_entry_rejects_the_whole_file(self):
         # Dropping a candidate silently would hide it from the reviewer entirely.
@@ -109,6 +150,13 @@ class TestLoad:
     def test_a_missing_file_raises_oserror(self, tmp_path):
         with pytest.raises(OSError):
             det.load(tmp_path / "absent.json")
+
+    def test_a_file_holding_the_nan_literal_is_rejected(self, tmp_path):
+        # json.load accepts the non-standard NaN and Infinity literals, and a NaN axis then
+        # slips through aneurysm_frame as a "coincident points" fallback with a NaN origin.
+        path = write(tmp_path, '{"a": {"P1": [NaN, 0, 0], "P2": [1, 0, 0]}}')
+        with pytest.raises(det.DetectionFormatError, match="malformed P1"):
+            det.load(path)
 
     def test_failure_message_names_the_file_and_the_cause(self, tmp_path):
         path = write(tmp_path, "{}")

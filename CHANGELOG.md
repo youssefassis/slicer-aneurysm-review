@@ -28,6 +28,10 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - Dragging the volume threshold to either end of the scalar range built an opacity ramp whose
   control points were out of order, which `vtkPiecewiseFunction` cannot represent; the ramp is
   now clamped to the range.
+- A detection whose `P1`/`P2` was the wrong shape, non-numeric, `null` or `NaN` passed
+  validation and then raised an uncaught `TypeError`, leaving the reviewer with a console
+  traceback and an empty table instead of the dialog naming the entry. Values are now checked,
+  not just key presence — see `docs/detection-format.md`.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

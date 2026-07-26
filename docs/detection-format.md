@@ -56,11 +56,19 @@ A file is rejected outright, with a dialog naming the offending entry, if:
 
 - it is not a JSON object (a top-level array is rejected),
 - it is empty,
-- any value is not an object, or
-- **any** entry is missing `P1` or `P2`.
+- any value is not an object,
+- **any** entry is missing `P1` or `P2`,
+- any `P1`, `P2` or `center` is not three finite numbers — the wrong length, a `null` or
+  string coordinate, or one of JSON's non-standard `NaN`/`Infinity` literals, or
+- any `confidence`, `radius` or `viewAngle` present is not a finite number (a `true`/`false`
+  counts as non-numeric here).
 
-Every entry is checked, not just the first. One bad entry rejects the whole file:
-silently dropping a candidate would hide it from the reviewer with no indication.
+Every entry is checked, not just the first, and values are checked rather than just key
+presence. One bad entry rejects the whole file: silently dropping a candidate would hide it
+from the reviewer with no indication.
+
+`Likert` and `aneurysm` are *not* validated: a nonsensical value there is ignored by the
+combo box and the checkbox rather than crashing.
 
 Note the asymmetry: unknown extra fields are **preserved**, not rejected — they survive a
 load/save round trip untouched, so a producer can carry its own metadata through a review.

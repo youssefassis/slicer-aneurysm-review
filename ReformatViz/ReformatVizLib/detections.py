@@ -10,6 +10,7 @@ The file format is the contract with whatever produces the detections; it is doc
 """
 
 import json
+import math
 import os
 
 import numpy as np
@@ -19,6 +20,12 @@ REQUIRED_KEYS = ("P1", "P2")
 
 #: Keys derived from P1/P2 when a producer omits them.
 DERIVED_KEYS = ("confidence", "center", "radius", "viewAngle", "aneurysm")
+
+#: Keys holding an ``[x, y, z]`` position, checked whenever they are present.
+POSITION_KEYS = (*REQUIRED_KEYS, "center")
+
+#: Keys holding a plain number, checked whenever they are present.
+NUMBER_KEYS = ("confidence", "radius", "viewAngle")
 
 #: Likert combo index meaning "not scored"; the key is absent rather than 0.
 LIKERT_UNSCORED = 0
@@ -59,6 +66,41 @@ def set_likert_score(d, index):
     return d
 
 
+def _is_number(value):
+    """True for a finite number. ``bool`` is excluded: ``True`` is an ``int`` subclass."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _is_position(value):
+    """True for an ``[x, y, z]`` of finite numbers."""
+    return (isinstance(value, (list, tuple)) and len(value) == 3
+            and all(_is_number(c) for c in value))
+
+
+def _validate_entry(key, d):
+    """Raise :class:`DetectionFormatError` unless ``d`` is a detection the module can use.
+
+    Values are checked, not just key presence: everything here is fed straight to numpy or
+    to a VTK source, where a string coordinate or a NaN becomes a traceback in the Python
+    console rather than the dialog the reviewer is meant to see.
+    """
+    if not isinstance(d, dict):
+        raise DetectionFormatError(f"detection '{key}' is {type(d).__name__}, expected an object")
+
+    missing = [k for k in REQUIRED_KEYS if k not in d]
+    if missing:
+        raise DetectionFormatError(f"detection '{key}' has no {' or '.join(missing)} position")
+
+    for name in POSITION_KEYS:
+        if name in d and not _is_position(d[name]):
+            raise DetectionFormatError(
+                f"detection '{key}' has a malformed {name}: expected three finite numbers"
+            )
+    for name in NUMBER_KEYS:
+        if name in d and not _is_number(d[name]):
+            raise DetectionFormatError(f"detection '{key}' has a non-numeric {name}")
+
+
 def validate(data):
     """Return the detections in ``data``, or raise :class:`DetectionFormatError`.
 
@@ -74,11 +116,7 @@ def validate(data):
             f"expected a JSON object mapping names to detections, got {type(data).__name__}"
         )
     for key, d in data.items():
-        if not hasattr(d, "__contains__") or isinstance(d, str):
-            raise DetectionFormatError(f"detection '{key}' is {type(d).__name__}, expected an object")
-        missing = [k for k in REQUIRED_KEYS if k not in d]
-        if missing:
-            raise DetectionFormatError(f"detection '{key}' has no {' or '.join(missing)} position")
+        _validate_entry(key, d)
     return list(data.values())
 
 
