@@ -210,6 +210,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.resizeColumnsToContents()
         self.tableWidget.setSelectionBehavior(self.tableWidget.SelectRows)
         self.tableWidget.setSelectionMode(self.tableWidget.SingleSelection)
+        self.tableWidget.clicked.connect(self.onRowSelected)
 
         self.layout_2 = qt.QGridLayout()
         self.layout_2.addWidget(self.tableWidget)
@@ -418,8 +419,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         itm = qt.QTableWidgetItem(str(size))
         itm.setTextAlignment(4)
         self.tableWidget.setItem(idx, 1,  itm)
-
-        self.tableWidget.clicked.connect(self.onRowSelected)
 
         cbox = qt.QCheckBox()
         cbox.checked = int(d['aneurysm'])
