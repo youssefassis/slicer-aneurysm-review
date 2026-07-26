@@ -37,8 +37,11 @@ foreshortening, so the slice must **contain the aneurysm axis** (`P1` ostium →
 and the reviewer spins the view around that axis.
 
 `geometry.rotate2Z(v)` returns a rotation whose **third row is the unit `v`** — it maps `v`
-onto +Z, with the first two rows an arbitrary but deterministic orthonormal completion.
-Degenerate input returns the identity, so callers always get a usable frame.
+onto +Z, with the first two rows an arbitrary but deterministic orthonormal completion. A
+vertical `v` has no horizontal direction to complete the frame from, so it gets an
+axis-aligned frame instead (the identity for straight up, a half turn about X for straight
+down). Only a zero-length `v` falls back to the identity regardless of direction, so callers
+always get a usable frame.
 
 `geometry.aneurysm_frame(P1, P2)` derives the `(axis, origin, Rz)` triple the rest depends
 on. Then, per slider movement:

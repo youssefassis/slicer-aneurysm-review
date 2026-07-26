@@ -26,7 +26,7 @@ def rotate2Z(v):
     """Return a rotation matrix whose third row is the unit ``v``, i.e. it maps ``v`` to +Z.
 
     The first two rows are an arbitrary but deterministic orthonormal completion. Returns
-    the identity for a degenerate ``v``, so the caller always gets a usable frame.
+    the identity for a zero-length ``v``, so the caller always gets a usable frame.
     """
     v = np.array(v)
     tn = v @ v  # tiny bit faster that np.dot(v,v)
@@ -38,7 +38,10 @@ def rotate2Z(v):
     tn = R1 @ R1
 
     if tn < EPS:
-        return np.eye(3, dtype=np.float64)
+        # v is vertical, so there is no horizontal direction to complete the frame from.
+        # Straight up is already the identity's third row; straight down needs a half turn
+        # about X, because returning the identity there would map v onto -Z, not +Z.
+        return np.eye(3, dtype=np.float64) if vn[2] > 0 else np.diag([1.0, -1.0, -1.0])
 
     # sqrt(tn) is sqrt(vn[0]**2 + vn[1]**2), which is the same quantity as sqrt(1 - vn[2]**2)
     # but without the cancellation that costs that form nearly all its precision when the

@@ -37,6 +37,9 @@ change for whatever produces those files. See `docs/detection-format.md`.
   the write now goes to a temporary file and is renamed into place.
 - Detection files are read and written as UTF-8 instead of the platform's locale encoding, so a
   file carrying a non-ASCII producer field no longer fails to load on Windows.
+- An aneurysm whose dome sat directly below its ostium got the identity as its rotation frame,
+  which maps the axis onto `-Z` rather than `+Z`, so the rotation slider turned the view the
+  opposite way for those detections alone.
 - Dome markups ignored the blue channel of the chosen colour (`SetColor(r, g, g)`).
 - Clicking a table row ran the selection handler once per existing row, because the signal
   was reconnected on every row insertion.

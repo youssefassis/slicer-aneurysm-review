@@ -49,7 +49,17 @@ class TestRotate2Z:
         assert np.linalg.det(R) == pytest.approx(1.0, abs=1e-12)
         assert np.linalg.norm(geo.slice_normal(R, 45)) == pytest.approx(1.0, abs=1e-12)
 
-    def test_degenerate_vector_falls_back_to_identity(self):
+    def test_third_row_is_the_unit_input_for_a_straight_down_axis(self):
+        # A dome directly below its ostium. The identity used to be returned here, which maps
+        # the axis onto -Z instead of +Z: still perpendicular, so nothing looked broken, but
+        # the rotation slider turned the view the opposite way for those aneurysms alone.
+        R = geo.rotate2Z([0.0, 0.0, -1.0])
+        assert R[2] == pytest.approx([0, 0, -1])
+        assert R @ np.array([0.0, 0.0, -1.0]) == pytest.approx([0, 0, 1])
+        assert R @ R.T == pytest.approx(np.eye(3))
+        assert np.linalg.det(R) == pytest.approx(1.0)
+
+    def test_a_zero_length_vector_falls_back_to_identity(self):
         # A usable frame matters more than signalling the error: a zero-length axis means
         # P1 and P2 coincide, which prepare_slices already guards against.
         assert geo.rotate2Z([0.0, 0.0, 0.0]) == pytest.approx(np.eye(3))
@@ -66,6 +76,11 @@ class TestAneurysmFrame:
 
     def test_rz_matches_the_axis(self):
         axis, _, Rz = geo.aneurysm_frame([1, 1, 1], [2, 3, 5])
+        assert Rz[2] == pytest.approx(axis)
+
+    def test_rz_matches_the_axis_when_the_dome_sits_below_the_ostium(self):
+        axis, _, Rz = geo.aneurysm_frame([0, 0, 10], [0, 0, 0])
+        assert axis == pytest.approx([0, 0, -1])
         assert Rz[2] == pytest.approx(axis)
 
     def test_coincident_points_fall_back_to_the_default_axis(self):
