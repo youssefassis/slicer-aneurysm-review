@@ -9,6 +9,7 @@ set(MODULE_PYTHON_SCRIPTS
   ReformatVizLib/__init__.py
   ReformatVizLib/detections.py
   ReformatVizLib/geometry.py
+  ReformatVizLib/jsonio.py
   ReformatVizLib/rendering.py
   )
 

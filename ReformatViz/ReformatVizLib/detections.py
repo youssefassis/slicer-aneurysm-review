@@ -9,12 +9,12 @@ The file format is the contract with whatever produces the detections; it is doc
 ``docs/detection-format.md``. Changing it is a breaking change for those producers.
 """
 
-import contextlib
-import json
 import math
 from pathlib import Path
 
 import numpy as np
+
+from ReformatVizLib import jsonio
 
 #: Positions every detection must carry: the ostium and the dome, in RAS millimetres.
 REQUIRED_KEYS = ("P1", "P2")
@@ -144,7 +144,7 @@ def load(path):
     for malformed content, and ``OSError`` if the file cannot be read. Callers in the GUI
     turn those into a dialog; the message is meant to be shown to the reviewer.
     """
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    data = jsonio.read_json(path)
     detections = [add_missing_info(d) for d in validate(data)]
     return sort_for_review(detections)
 
@@ -165,20 +165,9 @@ def save(path, detections):
     Note this is *not* the shape that was read: input keys are the producer's names, output
     keys are ``"0"``, ``"1"``, ... in table order. See ``docs/detection-format.md``.
 
-    The write goes to a temporary file in the same directory and is renamed into place, so a
-    failure part-way through leaves the previous file intact: the reviewer normally saves over
-    the file they loaded, and a truncated one would cost them the whole session's verdicts.
+    The write is atomic — see :func:`jsonio.write_json` for why that matters here.
     """
-    path = Path(path)
-    temporary = path.with_name(path.name + ".tmp")
-    try:
-        with temporary.open("w", encoding="utf-8") as f:
-            json.dump({str(i): d for i, d in enumerate(detections)}, f, indent=2)
-        temporary.replace(path)
-    except Exception:
-        with contextlib.suppress(OSError):
-            temporary.unlink()
-        raise
+    jsonio.write_json(path, {str(i): d for i, d in enumerate(detections)})
 
 
 def describe_load_failure(path, error):
