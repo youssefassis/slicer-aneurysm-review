@@ -20,6 +20,10 @@ conversion layer. Every mutation takes the timestamp to record as ``at`` rather 
 the clock itself: the caller owns the clock, and the tests can then be exact.
 """
 
+from pathlib import Path
+
+from ReformatVizLib import jsonio
+
 #: Bumped whenever the shape of the review file changes. Readers must check it.
 FORMAT_VERSION = 1
 
@@ -273,3 +277,106 @@ def describe_progress(review):
     if state == SIGNED_OFF:
         return f"Signed off — {total} candidate{'' if total == 1 else 's'} reviewed"
     return f"{total - undecided} of {total} decided"
+
+
+def validate(review):
+    """Return ``review`` if it is one this module can work with, else raise.
+
+    Called on everything read from disk. A review that fails this is not partially loaded:
+    guessing at a half-understood clinical record is worse than refusing it.
+    """
+    if not isinstance(review, dict):
+        raise ReviewError(f"a review is an object, not {type(review).__name__}")
+
+    version = review.get("formatVersion")
+    if version != FORMAT_VERSION:
+        raise ReviewError(
+            f"review format version {version!r}, but this is ReformatViz {FORMAT_VERSION}"
+        )
+
+    for section in ("study", "source", "review", "detections"):
+        if not isinstance(review.get(section), dict):
+            raise ReviewError(f"the review has no '{section}' object")
+    if not isinstance(review.get("events"), list):
+        raise ReviewError("the review has no 'events' list")
+
+    header = review["review"]
+    if header.get("state") not in CASE_STATES:
+        raise ReviewError(f"case state {header.get('state')!r} is not one of {CASE_STATES}")
+    if not header.get("reviewer"):
+        raise ReviewError("the review does not say who made it")
+
+    for key, e in review["detections"].items():
+        _validate_entry(key, e)
+
+    undecided = undecided_keys(review)
+    if header["state"] == SIGNED_OFF and undecided:
+        raise ReviewError(
+            f"the review is signed off but {len(undecided)} candidates are undecided: "
+            f"{', '.join(undecided)}"
+        )
+    return review
+
+
+def _validate_entry(key, e):
+    if not isinstance(e, dict):
+        raise ReviewError(f"candidate '{key}' is {type(e).__name__}, expected an object")
+    if e.get("state") not in DETECTION_STATES:
+        raise ReviewError(f"candidate '{key}' has state {e.get('state')!r}")
+    if e.get("reason") is not None and e["reason"] not in REJECTION_REASONS:
+        raise ReviewError(f"candidate '{key}' has reason {e['reason']!r}")
+    if e.get("likert") is not None and e["likert"] not in LIKERT_SCORES:
+        raise ReviewError(f"candidate '{key}' has Likert score {e['likert']!r}")
+    if e.get("addedByReviewer") and not (e.get("P1") and e.get("P2")):
+        raise ReviewError(f"candidate '{key}' was added by the reviewer but has no positions")
+
+
+def load(path):
+    """Read a review file, or raise :class:`ReviewError` / ``OSError``."""
+    return validate(jsonio.read_json(path))
+
+
+def save(path, review):
+    """Write ``review`` to ``path``. Atomic — see :func:`jsonio.write_json`."""
+    jsonio.write_json(path, review)
+
+
+def matches_source(review, digest):
+    """Whether ``review`` was made against a detection file with this digest."""
+    return review["source"].get("sha256") == digest
+
+
+def describe_load_failure(path, error):
+    """Return the message shown to the reviewer when :func:`load` fails.
+
+    The case is not opened at all in this situation, which the message has to say: silently
+    starting a fresh review would overwrite the one that could not be read.
+    """
+    return ("This case has a review file that cannot be read, so the case has not been "
+            f"opened. Nothing has been written to it.\n\n{Path(path).name}: {error}")
+
+
+def describe_save_failure(path, error):
+    """Return the message shown to the reviewer when :func:`save` fails."""
+    return ("Saving the review failed — the verdicts recorded so far are still in the module "
+            "but are not on disk. The previous review file has been left unchanged."
+            f"\n\n{Path(path).name}: {error}")
+
+
+def describe_source_mismatch(review):
+    """Return the warning shown when the detection file changed under an existing review."""
+    return ("The detection file has changed since this review was started, so the candidates "
+            "on screen may not be the ones that were reviewed. The existing verdicts have "
+            f"been loaded unchanged.\n\nReview started {review['review']['startedAt']} by "
+            f"{review['review']['reviewer']}.")
+
+
+def file_name(reviewer):
+    """Return the review file name for ``reviewer``, inside the case's own directory.
+
+    Reviews are per reviewer as well as per case, so a second reviewer cannot silently
+    continue someone else's read. There is one reviewer today; the naming costs nothing now
+    and is cheaper than discovering the collision with real cases in the directory.
+    """
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in reviewer)
+    return f"review_{safe or 'unknown'}.json"

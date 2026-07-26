@@ -301,6 +301,129 @@ class TestEvents:
         assert [e["state"] for e in r["events"]] == [review.CONFIRMED, review.REJECTED]
 
 
+class TestFile:
+    def signed(self, tmp_path):
+        r = blank("c0", "c1")
+        review.set_state(r, "c0", review.CONFIRMED, LATER, note="left MCA bifurcation")
+        review.set_likert(r, "c0", 5, LATER)
+        review.set_state(r, "c1", review.REJECTED, LATER, reason="infundibulum")
+        review.add_detection(r, [1, 2, 3], [1, 2, 9], LATER)
+        review.sign_off(r, LATEST)
+        return r
+
+    def test_round_trips_through_a_file(self, tmp_path):
+        r = self.signed(tmp_path)
+        path = tmp_path / review.file_name("ykerrien")
+        review.save(path, r)
+        assert review.load(path) == r
+
+    def test_the_file_is_named_after_the_reviewer(self):
+        assert review.file_name("ykerrien") == "review_ykerrien.json"
+
+    @pytest.mark.parametrize("reviewer, expected", [
+        ("Dr O'Neill", "review_Dr_O_Neill.json"),
+        ("domain\\user", "review_domain_user.json"),
+        ("../escape", "review_.._escape.json"),
+        ("", "review_unknown.json"),
+    ])
+    def test_a_reviewer_name_cannot_reach_outside_the_case_directory(self, reviewer, expected):
+        # The name comes from the OS or a setting, so it is not necessarily a safe file name.
+        assert review.file_name(reviewer) == expected
+        assert "/" not in review.file_name(reviewer)
+
+    def test_a_review_from_a_future_format_is_refused_rather_than_guessed_at(self, tmp_path):
+        r = blank("c0")
+        r["formatVersion"] = review.FORMAT_VERSION + 1
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        with pytest.raises(review.ReviewError, match="format version"):
+            review.load(path)
+
+    @pytest.mark.parametrize("section", ["study", "source", "review", "detections", "events"])
+    def test_a_review_missing_a_section_is_refused(self, tmp_path, section):
+        r = blank("c0")
+        del r[section]
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        with pytest.raises(review.ReviewError, match=section):
+            review.load(path)
+
+    def test_a_review_that_does_not_say_who_made_it_is_refused(self, tmp_path):
+        r = blank("c0")
+        r["review"]["reviewer"] = ""
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        with pytest.raises(review.ReviewError, match="who made it"):
+            review.load(path)
+
+    @pytest.mark.parametrize("field, value", [
+        ("state", "probably"),
+        ("reason", "looked odd"),
+        ("likert", 9),
+    ])
+    def test_a_candidate_with_a_value_outside_the_vocabulary_is_refused(self, tmp_path,
+                                                                       field, value):
+        r = blank("c0")
+        r["detections"]["c0"][field] = value
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        with pytest.raises(review.ReviewError, match="c0"):
+            review.load(path)
+
+    def test_a_reviewer_added_candidate_without_positions_is_refused(self, tmp_path):
+        # It cannot be drawn again, so the review would silently lose a finding.
+        r = blank("c0")
+        review.add_detection(r, [0, 0, 0], [0, 0, 2], LATER, key="added_0")
+        del r["detections"]["added_0"]["P1"]
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        with pytest.raises(review.ReviewError, match="positions"):
+            review.load(path)
+
+    def test_a_signed_off_review_with_undecided_candidates_is_refused(self, tmp_path):
+        # The sign-off rule has to hold for a file someone edited by hand too, or the
+        # guarantee downstream relies on is only enforced while the module happens to be open.
+        r = blank("c0", "c1")
+        review.set_state(r, "c0", review.CONFIRMED, LATER)
+        r["review"]["state"] = review.SIGNED_OFF
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        with pytest.raises(review.ReviewError, match="undecided"):
+            review.load(path)
+
+    def test_a_failed_save_leaves_the_previous_review_intact(self, tmp_path):
+        path = tmp_path / "review.json"
+        review.save(path, blank("c0"))
+        before = path.read_bytes()
+        with pytest.raises(TypeError):
+            review.save(path, {"formatVersion": {1, 2}})
+        assert path.read_bytes() == before
+
+    def test_notes_are_stored_as_text_a_human_can_read(self, tmp_path):
+        r = blank("c0")
+        review.set_note(r, "c0", "artère communicante antérieure", LATER)
+        path = tmp_path / "review.json"
+        review.save(path, r)
+        assert "artère communicante antérieure" in path.read_text(encoding="utf-8")
+
+    def test_recognises_the_detection_file_it_was_made_against(self):
+        r = blank("c0")
+        assert review.matches_source(r, "abc123")
+        assert not review.matches_source(r, "def456")
+
+    def test_the_failure_messages_name_the_file(self, tmp_path):
+        path = tmp_path / "review_ykerrien.json"
+        assert "review_ykerrien.json" in review.describe_load_failure(path, "boom")
+        assert "review_ykerrien.json" in review.describe_save_failure(path, "boom")
+        assert "not been opened" in review.describe_load_failure(path, "boom")
+        assert "left unchanged" in review.describe_save_failure(path, "boom")
+
+    def test_the_mismatch_warning_says_who_reviewed_and_when(self, tmp_path):
+        message = review.describe_source_mismatch(blank("c0"))
+        assert "ykerrien" in message
+        assert START in message
+
+
 class TestProgress:
     def test_reports_how_many_are_decided(self):
         r = blank()
