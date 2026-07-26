@@ -14,6 +14,10 @@ def to_rgb(color):
     return (color.red() / 255, color.green() / 255, color.blue() / 255)
 
 
+def _clamp(value, low, high):
+    return min(max(value, low), high)
+
+
 def scalar_opacity_points(min_value, max_value, threshold, opacity, margin, translucent):
     """Return the opacity ramp control points for the volume rendering.
 
@@ -22,14 +26,18 @@ def scalar_opacity_points(min_value, max_value, threshold, opacity, margin, tran
     that plateau, which leaves only a thin shell at the threshold — that is how the vessel
     surface is shown in 3D without occluding the reformatted slice behind it.
 
+    The threshold slider reaches both ends of the scalar range, so the margin is clamped
+    into ``[min_value, max_value]``: a control point outside the range would leave the node
+    scalars non-ascending, which ``vtkPiecewiseFunction`` cannot represent.
+
     Returns ``SCALAR_OPACITY_POINT_COUNT`` lists of ``(x, y, midpoint, sharpness)``.
     """
     plateau = 0 if translucent else opacity
     ramp = [
         (min_value, 0),
-        (threshold - margin, 0),
-        (threshold, opacity),
-        (threshold + margin, plateau),
+        (_clamp(threshold - margin, min_value, max_value), 0),
+        (_clamp(threshold, min_value, max_value), opacity),
+        (_clamp(threshold + margin, min_value, max_value), plateau),
         (max_value, plateau),
     ]
     return [[x, y, _MIDPOINT, _SHARPNESS] for x, y in ramp]

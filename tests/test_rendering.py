@@ -49,6 +49,27 @@ class TestScalarOpacityPoints:
         xs = [p[0] for p in self.ramp()]
         assert xs == sorted(xs)
 
+    @pytest.mark.parametrize("threshold", [0, 5, 995, 1000])
+    def test_scalar_values_stay_non_decreasing_at_the_range_ends(self, threshold):
+        # The threshold slider reaches both ends of the scalar range. Unclamped, the margin
+        # then pushes a control point outside it and the node x-values stop ascending, which
+        # vtkPiecewiseFunction cannot represent — so the ramp the reviewer sees is not the
+        # one that was computed.
+        points = self.ramp(threshold=threshold)
+        xs = [p[0] for p in points]
+        assert xs == sorted(xs)
+        assert len(points) == rendering.SCALAR_OPACITY_POINT_COUNT
+
+    def test_threshold_at_the_minimum_pins_the_rise_to_the_range_start(self):
+        points = self.ramp(threshold=0, opacity=0.8)
+        assert [p[0] for p in points] == [0, 0, 0, 20, 1000]
+        assert [p[1] for p in points] == [0, 0, 0.8, 0.8, 0.8]
+
+    def test_threshold_at_the_maximum_pins_the_plateau_to_the_range_end(self):
+        points = self.ramp(threshold=1000, opacity=0.8)
+        assert [p[0] for p in points] == [0, 980, 1000, 1000, 1000]
+        assert [p[1] for p in points] == [0, 0, 0.8, 0.8, 0.8]
+
     def test_spans_the_full_scalar_range(self):
         points = self.ramp(min_value=-1024, max_value=3071)
         assert points[0][0] == -1024
