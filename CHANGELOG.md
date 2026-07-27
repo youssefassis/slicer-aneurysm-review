@@ -62,6 +62,9 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - A case signed off in an earlier session came back from disk with its verdict, reason, Likert
   and note controls still editable; changing one produced an error dialog rather than the
   control being disabled. The table is now locked as it is filled.
+- The view angle a reviewer left the last inspected candidate at was lost on **Clean**, on
+  closing the scene and on loading the next case, because it reaches the disk when a row is
+  left and nothing left the last one.
 - The crop ROI was sized from the volume's corner-to-corner diagonal and centred on the world
   origin, so any tilted or off-centre volume was silently clipped: a 20° gantry tilt lost half
   the field of view, and a 45° rotation collapsed the ROI to zero width.

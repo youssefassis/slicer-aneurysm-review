@@ -1032,6 +1032,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         whole of what a scene closed from the File menu needs, where the nodes have already
         been removed for us.
         """
+        # The view angle only reaches disk when the reviewer leaves a row, because the slider
+        # changes it far too often to write on every move — so the row they were on when they
+        # pressed Clean, closed the scene or opened the next case has yet to be written. A
+        # review that failed to load is None here, and is left exactly as it is on disk.
+        self.saveReview()
+
         self.spheres=[]
         self.lines=[]
         self.detections=[]
@@ -1106,6 +1112,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_case_is_resumed_exactly_as_it_was_left()
         self.test_a_case_whose_review_cannot_be_read_is_not_opened()
         self.test_a_signed_off_case_reopens_locked()
+        self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_closing_the_scene_resets_the_widget()
 
@@ -1333,6 +1340,24 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
                              & qt.Qt.ItemIsEditable)
 
         widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_the_last_view_angle_survives_clean(self):
+        self.delayDisplay('The angle the reviewer left the last row at is written out')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        key = widget.detections[1][det.SOURCE_KEY]
+        widget.onRowSelected(1)
+        widget.rotateAxisSlider(42)
+        # Nothing else here asks for a save — no verdict, no annotation — so the angle is
+        # still only in memory, which is exactly the case that used to lose it.
+        widget.reset()
+
+        onDisk = rev.load(self._reviewFile(directory))
+        self.assertEqual(rev.entry(onDisk, key)['viewAngle'], 42)
         self.delayDisplay('Passed')
 
     def test_a_note_on_a_candidate_with_no_case_open_is_ignored(self):
