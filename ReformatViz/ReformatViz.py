@@ -130,7 +130,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Called when the user opens the module the first time and the widget is initialized.
         """
         ScriptedLoadableModuleWidget.setup(self)
-        slicer.util.findChild(slicer.util.mainWindow(), "DataProbeCollapsibleWidget").setVisible(False)
 
         # Load widget from .ui file (created by Qt Designer).
         # Additional widgets can be instantiated manually and added to self.layout.
@@ -149,6 +148,44 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Last, so that a scene closed from the File menu can never land on a half-built
         # widget: the handler reads self.detections and the table.
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
+    def enter(self):
+        """Called when the reviewer switches to this module.
+
+        No call up to `ScriptedLoadableModuleWidget`: it does not define `enter`/`exit`, and
+        Slicer swallows the resulting AttributeError while switching modules, so everything
+        after such a call would silently never run.
+        """
+        probe = self.dataProbeWidget()
+        if probe:
+            # Remembered rather than assumed: hiding it is this module's doing, and a
+            # reviewer who had already collapsed it should not find it reopened on the way
+            # out.
+            self.dataProbeWasVisible = probe.visible
+            probe.setVisible(False)
+
+    def exit(self):
+        """Called when the reviewer switches away to another module. See `enter`."""
+        probe = self.dataProbeWidget()
+        if probe:
+            probe.setVisible(self.dataProbeWasVisible)
+
+    def dataProbeWidget(self):
+        """Return the application's data probe, or None when there is not one to hide.
+
+        The module hides it to make room for the review table. It belongs to the application
+        rather than to this module, which is why it is put back in `exit()` instead of being
+        hidden once and for the rest of the session.
+        """
+        mainWindow = slicer.util.mainWindow()
+        if mainWindow is None:
+            return None
+        try:
+            return slicer.util.findChild(mainWindow, "DataProbeCollapsibleWidget")
+        except RuntimeError:
+            # findChild raises rather than returning None, and the widget is genuinely absent
+            # in a session started without the DataProbe module.
+            return None
 
     def connectVolumeControls(self):
         self.ui.load_volume_button.clicked.connect(self.load_files) # load volume
@@ -195,6 +232,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def initState(self):
         """Create the session-long nodes and the state the rest of the widget assumes."""
+        self.dataProbeWasVisible = True
         self.ensureMarkupsNodes()
         self.spheres = []
         self.lines = []
@@ -1122,6 +1160,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
+        self.test_the_data_probe_is_hidden_while_the_module_is_open()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -1405,6 +1444,29 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.set_volume_color()
 
         widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_the_data_probe_is_hidden_while_the_module_is_open(self):
+        self.delayDisplay('The data probe is hidden on entry and put back on the way out')
+        widget = self._widget()
+        probe = widget.dataProbeWidget()
+        if probe is None:
+            self.delayDisplay('Skipped: this session has no data probe')
+            return
+
+        probe.setVisible(True)
+        widget.enter()
+        self.assertFalse(probe.visible)
+        widget.exit()
+        self.assertTrue(probe.visible)
+
+        # A reviewer who had already collapsed it does not find it reopened.
+        probe.setVisible(False)
+        widget.enter()
+        widget.exit()
+        self.assertFalse(probe.visible)
+
+        widget.enter()
         self.delayDisplay('Passed')
 
     def test_module_loads(self):

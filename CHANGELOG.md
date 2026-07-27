@@ -67,6 +67,9 @@ change for whatever produces those files. See `docs/detection-format.md`.
   left and nothing left the last one.
 - Recolouring the volume raised `AttributeError` when the volume had outlived its
   volume-rendering nodes, the one call site of several here that did not check.
+- The module hid the application's data probe for the rest of the session, including after the
+  reviewer switched to another module; it is now restored on the way out, and left alone if
+  the reviewer had already collapsed it.
 - The crop ROI was sized from the volume's corner-to-corner diagonal and centred on the world
   origin, so any tilted or off-centre volume was silently clipped: a 20° gantry tilt lost half
   the field of view, and a 45° rotation collapsed the ROI to zero width.
