@@ -402,9 +402,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         self.reset()
                         return
                     self.create_spheres()
-                    for d in self.detections:
-                        self.add_detection_to_table(d)
-                    self.updateProgress()
+                    self.fillReviewTable()
 
     def load_detections(self, file_path):
         # Parsing and validation live in ReformatVizLib; this method only turns a failure
@@ -521,6 +519,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         signedOff = self.review['review']['state'] == rev.SIGNED_OFF
         self.ui.signOffButton.text = 'Reopen' if signedOff else 'Sign off'
 
+    def fillReviewTable(self):
+        """Show the open review: one row per detection, locked if the case is finished.
+
+        The lock matters on the way in, not only after `onSignOff`: a case signed off in an
+        earlier session is loaded from disk already finished, and without this its controls
+        look editable and answer the first change with an error dialog.
+        """
+        for d in self.detections:
+            self.add_detection_to_table(d)
+        # Once the rows exist, not once per row.
+        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,
+                                                              COL_CONFIDENCE))
+        self.updateProgress()
+        if self.review:
+            self.setReviewEditable(self.review['review']['state'] != rev.SIGNED_OFF)
+
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
     def add_detection_to_table(self,d):
         idx=self.tableWidget.rowCount
@@ -577,8 +591,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Note
         self.tableWidget.setItem(idx, COL_NOTE, qt.QTableWidgetItem(entry.get('note', '')))
 
-        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,
-                                                             COL_CONFIDENCE))
         self.populatingTable = False
 
     def onVerdictChanged(self, index, key, row):
@@ -1078,6 +1090,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_case_cannot_be_signed_off_until_every_candidate_is_decided()
         self.test_a_case_is_resumed_exactly_as_it_was_left()
         self.test_a_case_whose_review_cannot_be_read_is_not_opened()
+        self.test_a_signed_off_case_reopens_locked()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -1155,9 +1168,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertTrue(widget.startReview(directory, directory / 'angio.nii.gz',
                                            directory / 'detections.json'))
         widget.create_spheres()
-        for d in widget.detections:
-            widget.add_detection_to_table(d)
-        widget.updateProgress()
+        widget.fillReviewTable()
 
     def _reviewFile(self, directory):
         return directory / rev.file_name(reviewerName())
@@ -1276,6 +1287,34 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # Still exactly as it was: starting a second review over it would be the one
         # unrecoverable thing here.
         self.assertEqual(self._reviewFile(directory).read_text(), '{ this is not a review')
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_a_signed_off_case_reopens_locked(self):
+        self.delayDisplay('A case signed off in an earlier session comes back locked')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        for row, verdict in enumerate(('Yes', 'No', 'Not assessable')):
+            self._setVerdict(widget, row, verdict)
+        widget.onSignOff()
+
+        # Away and back, the way the next session reaches it: off disk, already finished.
+        widget.reset()
+        self._openCase(widget, directory)
+        self.assertEqual(widget.review['review']['state'], rev.SIGNED_OFF)
+
+        for row in range(widget.tableWidget.rowCount):
+            # Locked on the way in, not only after onSignOff — otherwise the controls invite
+            # a change and answer it with an error dialog.
+            self.assertFalse(widget.tableWidget.cellWidget(row, COL_VERDICT).enabled)
+            self.assertFalse(widget.tableWidget.cellWidget(row, COL_LIKERT).enabled)
+            self.assertFalse(widget.tableWidget.cellWidget(row, COL_REASON).enabled)
+            self.assertFalse(widget.tableWidget.item(row, COL_NOTE).flags()
+                             & qt.Qt.ItemIsEditable)
 
         widget.reset()
         self.delayDisplay('Passed')
