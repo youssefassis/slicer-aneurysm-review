@@ -108,7 +108,7 @@ def createModel(model, name):
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = "Reformat Aneurysm"  # TODO: make this more human readable by adding spaces
+        self.parent.title = "Reformat Aneurysm"
         self.parent.categories = ["Aneurysms"]
         self.parent.dependencies = []
         self.parent.contributors = ["Youssef Assis and Erwan Kerrien (Loria lab.)"]
@@ -637,7 +637,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Likert score
         lv = qt.QComboBox()
         for i in range(6):
-            lv.addItem('-' if i == 0 else i)
+            lv.addItem('-' if i == det.LIKERT_UNSCORED else str(i))
         lv.setCurrentIndex(entry.get('likert') or det.LIKERT_UNSCORED)
         self.tableWidget.setCellWidget(idx, COL_LIKERT, lv)
         lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key))
