@@ -159,3 +159,21 @@ out.
   convert at the boundary (`Path(dialog_result)`) and convert back with `str()` only where Qt
   needs it again — `slicer.util.loadVolume` passes the name straight to Qt, which cannot
   convert a `Path`. Functions taking a path accept either, via `Path(path)`.
+
+## Open decisions
+
+These block a first tagged release and are the lab's calls, not something to fill in while
+working on the code.
+
+- **The copyright holder.** The source headers credit the authors rather than a legal entity.
+  Loria is a joint unit, so the holder is likely Inria, CNRS and/or Université de Lorraine —
+  confirm with the lab, then set it consistently across the headers.
+- **The supported Slicer version.** The code is developed and tested against 5.12.3; confirm
+  that is what the lab reviews with, then pin the same version in CI.
+- **The extension metadata** in the top-level `CMakeLists.txt`, which still carries the
+  wizard's "John Doe (AnyWare Corp.)" contributor and `example.com` URLs.
+- **A real screenshot.** `ReformatViz.png` is still the extension wizard's placeholder icon,
+  not a picture of the module.
+- **How the software should be cited**, if at all. `CITATION.cff` was removed; making the
+  software citable means adding it back, along with a DOI from an archive such as Zenodo, HAL
+  or Software Heritage.

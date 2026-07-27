@@ -34,7 +34,7 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - **A sample case**, `data/sample_case/`: a synthetic phantom angiogram and five candidate
   detections, three of them aneurysms, so the module can be tried without a patient volume.
   Regenerated deterministically by `tools/make_sample_data.py`; described in `data/README.md`.
-- Apache-2.0 licence, `CITATION.cff`, and this changelog.
+- Apache-2.0 licence and this changelog.
 - `ReformatVizLib`, a Slicer-free package holding the geometry, detection I/O and display
   maths, so that logic can be tested without launching Slicer.
 - `tests/`, a pytest suite covering `ReformatVizLib` (runs in seconds, no Slicer needed).
