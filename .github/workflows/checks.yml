@@ -1,0 +1,86 @@
+# CI for the Slicer-free part of the project — the GitHub counterpart of `.gitlab-ci.yml`.
+# Both remotes run the same two checks, so a push cannot be green on one and red on the other.
+#
+# Deliberately two-tier: these checks need no Slicer, so they finish in seconds and can gate
+# every push. Booting Slicer to run the in-Slicer test (ReformatVizTest) takes minutes and a
+# container image, so it is NOT wired up here — see docs/development.md for running it
+# locally, and the commented job at the bottom for what enabling it would take.
+#
+# Gating every commit on a Slicer boot is how CI ends up switched off.
+
+name: checks
+
+# Every push, on every branch, as on GitLab. There is deliberately no `pull_request` trigger:
+# in a private repository Actions minutes are metered, and adding one would run the same
+# checks twice for any branch with a PR open. Add it if pull requests from forks ever become
+# the way work arrives.
+on: push
+
+permissions:
+  contents: read
+
+# A new push to a branch makes the run in flight for it pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# GitLab runs lint and tests as two parallel jobs because a runner there costs nothing extra.
+# Here they share one job: the checks take about a second each, so a second runner would pay
+# another startup and pip install for nothing. `if: always()` on the test step keeps both
+# failures visible in one run rather than hiding the tests behind a lint error.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Matches the `python:3.11-slim` image GitLab uses, and the Python the pins in
+          # requirements-dev.txt target. NOT Slicer's interpreter — see docs/development.md.
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: python -m pip install --quiet -r requirements-dev.txt
+
+      # Also fails if ReformatVizLib ever imports slicer/vtk/qt: the banned-api rules in
+      # pyproject.toml are what keep the core testable.
+      - name: ruff
+        run: ruff check .
+
+      - name: pytest
+        if: always()
+        run: python -m pytest --junitxml=report.xml
+
+      # GitHub does not render JUnit XML the way GitLab does, so keep the report as an
+      # artifact — a failure can then be read without re-running the suite locally.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-report
+          path: report.xml
+          if-no-files-found: ignore
+
+# To run the in-Slicer test in CI you need a Slicer build or a prebuilt Slicer image plus a
+# virtual framebuffer, because the module builds Qt widgets and a 3D view:
+#
+#  slicer-tests:
+#    runs-on: ubuntu-latest
+#    container: <a pinned Slicer image; development runs against Slicer 5.12.3>
+#    continue-on-error: true
+#    steps:
+#      - uses: actions/checkout@v4
+#      - run: |
+#          xvfb-run -a Slicer --no-splash --testing \
+#            --additional-module-paths "$GITHUB_WORKSPACE/ReformatViz" \
+#            --python-code "import slicer.testing;
+#            slicer.testing.runUnitTest(['$GITHUB_WORKSPACE/ReformatViz'], 'ReformatViz.ReformatVizTest');
+#            slicer.util.exit(0)"
+#
+# That invocation is the one ctest uses, and it exits non-zero on failure. It was verified
+# against Slicer 5.12.3 locally; the earlier `moduleTest()` form named here did not exist.
+# --testing is required, or a failure dialog blocks the job until it times out.
+#
+# Pin the image to the same Slicer version README names as supported, so a Slicer release
+# cannot change what this pipeline means.

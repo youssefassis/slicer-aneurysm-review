@@ -39,7 +39,7 @@ Python packages.
 > **Pin the Slicer version.** Development and the in-Slicer test currently run against
 > **Slicer 5.12.3** (revision 34627), which is what `README.md` names. What is still a
 > decision rather than a fact: whether that is the version the lab commits to supporting, and
-> therefore what to pin in the commented `slicer-tests` job in `.gitlab-ci.yml`. Pick the
+> therefore what to pin in the commented `slicer-tests` jobs in the CI files. Pick the
 > release the lab actually reviews with; if it is not 5.12.x, re-check the interpreter and
 > `requires-python`, because Slicer's Python moves between releases.
 
@@ -143,6 +143,22 @@ ctest --test-dir ../build -R ReformatViz     # runs ReformatVizTest inside Slice
 to that list** — a file that is not listed will work from `--additional-module-paths` during
 development and then be missing from the packaged extension, which is a nasty way to find
 out.
+
+## CI
+
+The project has two remotes — GitHub and the original Inria GitLab — and both run the same two
+checks, so a push cannot be green on one and red on the other:
+
+| | |
+| --- | --- |
+| [`.github/workflows/checks.yml`](../.github/workflows/checks.yml) | GitHub Actions |
+| [`.gitlab-ci.yml`](../.gitlab-ci.yml) | GitLab |
+
+Each runs `ruff check .` and `python -m pytest` on Python 3.11, and nothing else. The
+in-Slicer test is wired up on neither: booting Slicer takes minutes and a container image, and
+gating every commit on that is how CI ends up switched off. Both files carry a commented
+`slicer-tests` job recording what enabling it would take. **Change one file, change the
+other** — the point of them is that they agree.
 
 ## Conventions
 

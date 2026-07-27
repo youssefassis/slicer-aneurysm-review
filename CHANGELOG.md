@@ -41,7 +41,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - `ReformatVizTest`, the in-Slicer self-test that `slicer_add_python_unittest` has always
   expected but which was never written.
 - Documentation under `docs/`: user guide, detection file format, architecture, development.
-- GitLab CI running the Slicer-free tests and the linter on every push.
+- CI running the Slicer-free tests and the linter on every push, on both remotes: GitHub
+  Actions (`.github/workflows/checks.yml`) and GitLab (`.gitlab-ci.yml`).
 
 ### Fixed
 

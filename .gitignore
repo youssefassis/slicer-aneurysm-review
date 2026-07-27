@@ -1,5 +1,9 @@
 __pycache__/
 
+# The JUnit report both CI files ask pytest for; also lands here when the CI command is
+# reproduced locally.
+report.xml
+
 # Reviews of the sample case. The module writes one per reviewer beside the volume as they
 # work (docs/review-format.md), so anyone who tries the sample would otherwise see it as a
 # change to the repository.
