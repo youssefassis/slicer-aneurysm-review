@@ -634,9 +634,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onNoteEdited(self, item):
         if self.populatingTable or item.column() != COL_NOTE:
             return
-        detection = self.detections[item.row()]
-        self.applyToReview(functools.partial(rev.set_note, self.review,
-                                             detection[det.SOURCE_KEY], item.text(), now()))
+        # No key when no case is open — an annotation placed against a bare volume has
+        # nowhere to be recorded. Read it the way the combo handlers do rather than
+        # subscripting, which raises before applyToReview can decline.
+        key = self.detections[item.row()].get(det.SOURCE_KEY)
+        if key is None:
+            return
+        self.applyToReview(functools.partial(rev.set_note, self.review, key, item.text(),
+                                             now()))
 
     def onSignOff(self):
         """Finish the case, or reopen a finished one.
@@ -1101,6 +1106,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_case_is_resumed_exactly_as_it_was_left()
         self.test_a_case_whose_review_cannot_be_read_is_not_opened()
         self.test_a_signed_off_case_reopens_locked()
+        self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -1325,6 +1331,32 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             self.assertFalse(widget.tableWidget.cellWidget(row, COL_REASON).enabled)
             self.assertFalse(widget.tableWidget.item(row, COL_NOTE).flags()
                              & qt.Qt.ItemIsEditable)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_a_note_on_a_candidate_with_no_case_open_is_ignored(self):
+        self.delayDisplay('A note typed against a bare volume is dropped, not a traceback')
+        widget = self._widget()
+        widget.reset()
+        widget.volNode = self._addTestVolume()
+
+        # No detection file, so no review and no key: exactly what load_files leaves behind
+        # for a directory holding a volume alone.
+        widget.prepareAnnotationNode()
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 6.0])
+        widget.validateAnnotation()
+        self.assertIsNone(widget.review)
+        self.assertNotIn(det.SOURCE_KEY, widget.detections[0])
+
+        # Used to raise KeyError from the partial's arguments, before applyToReview could
+        # decline the change. Called directly as well as through the signal, because PythonQt
+        # swallows an exception raised inside a slot — it prints the traceback and lets
+        # setText return normally, so the signal path alone would pass either way.
+        item = widget.tableWidget.item(0, COL_NOTE)
+        item.setText('looks like an infundibulum')
+        widget.onNoteEdited(item)
 
         widget.reset()
         self.delayDisplay('Passed')

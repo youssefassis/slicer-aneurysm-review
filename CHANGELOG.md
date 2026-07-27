@@ -56,6 +56,9 @@ change for whatever produces those files. See `docs/detection-format.md`.
   distinguish it from a broken module. It now says what a case directory has to contain, and a
   directory holding a volume but no detection file says that the volume loaded, that there is
   nothing to review, and that nothing is being recorded.
+- Typing a note against an aneurysm placed by hand with no case open raised `KeyError` in the
+  Python console instead of being quietly dropped, because such a detection has no review to
+  be recorded in.
 - A case signed off in an earlier session came back from disk with its verdict, reason, Likert
   and note controls still editable; changing one produced an error dialog rather than the
   control being disabled. The table is now locked as it is filled.
