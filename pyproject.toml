@@ -29,8 +29,9 @@ dev = ["numpy", "pytest", "ruff"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # ReformatVizLib is imported from where Slicer keeps it rather than installed, so the
-# tests see the same layout Slicer does.
-pythonpath = ["ReformatViz"]
+# tests see the same layout Slicer does. `tools` is here only so tests/test_sample_data.py
+# can check the committed sample case against the constants that generated it.
+pythonpath = ["ReformatViz", "tools"]
 addopts = "--strict-markers -q"
 
 [tool.ruff]
