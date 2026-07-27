@@ -404,12 +404,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def load_files(self):
         # save before loading
         dir_path = qt.QFileDialog().getExistingDirectory()
-        if not dir_path:
-            return
+        if dir_path:
+            self.openCase(Path(dir_path))
 
+    def openCase(self, directory):
+        """Open the case in ``directory``: its volume, its detections and its review.
+
+        Separate from `load_files` so the whole path can be exercised without the directory
+        dialog, which a test cannot open.
+        """
         # Which files make up a case is decided in ReformatVizLib, where it can be tested;
         # the review the module itself writes into this directory is not one of them.
-        directory = Path(dir_path)
         volumePath, detectionPath = case.find_files(directory)
         if volumePath is None:
             # Otherwise choosing the wrong folder is silent, which looks like a broken module.
