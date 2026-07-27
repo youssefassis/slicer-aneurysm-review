@@ -121,10 +121,18 @@ that reacts to selection.
 
 ### Scene ownership
 
-`__init__` calls `clearScene()`, so opening the module wipes the scene. This is deliberate:
-`load_files()` takes `getNodesByClass("vtkMRMLScalarVolumeNode")[0]` and `onCropChanged()`
-takes the first `vtkMRMLMarkupsROINode`, both of which would latch onto foreign nodes
-otherwise. Removing the wipe means fixing those lookups first.
+**The module owns the nodes it created, and nothing else.** It never empties the scene and
+never looks a node up by class, so it can be opened alongside another module's data.
+
+Two references are what make that possible. `self.volNode` is whatever `slicer.util.loadVolume`
+returned, not the first `vtkMRMLScalarVolumeNode` in the scene; `self.roiNode` is the crop ROI
+this module added, reached through `currentRoiNode()` — which returns `None` once the node has
+left the scene — and created on demand by `ensureRoiNode()`. Both used to be
+`getNodesByClass(...)[0]`, which is why opening the module used to wipe the scene first.
+
+Keep it that way: a `getNodesByClass` in this file is a bug waiting for a reviewer who had
+their own volume loaded. `test_a_case_opens_without_disturbing_the_rest_of_the_scene` is the
+guard.
 
 The widget observes the scene's `EndCloseEvent` (registered at the end of `setup()`, through
 the inherited `VTKObservationMixin`), so a scene closed from the File menu
@@ -135,9 +143,10 @@ recreates the three shared markups nodes and calls `forgetSceneState()`.
 `detections`, `spheres`, `lines` and the table, drops the volume references and unselects. The
 split matters because the two callers have opposite obligations — **Clean** and the next patient
 load must remove the nodes themselves, while after a scene close there is nothing left to remove
-and reaching for those nodes is what would go wrong. `cleanup()` drops the observers before its
-own `clearScene()`, so the module's teardown does not run the handler against a widget that is
-being destroyed.
+and reaching for those nodes is what would go wrong. `cleanup()` drops the observers first, so
+the module's teardown does not run the handler against a widget that is being destroyed, then
+calls `reset()` and removes the three shared markups nodes — a reload builds a new widget, which
+would otherwise add three more and orphan these.
 
 ## Slicer and Qt conventions
 

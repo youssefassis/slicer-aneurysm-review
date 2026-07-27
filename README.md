@@ -35,7 +35,8 @@ that directory; [`data/README.md`](data/README.md) says which candidates are the
 ## Use
 
 1. **Select** a case directory. The first `*.nii.gz` in it is loaded as the volume and the
-   first `*.json` as the detections. Opening the module clears the scene first.
+   first `*.json` that is not a review file as the detections. Anything else already in the
+   scene is left alone.
 2. Click a row in the table to review that candidate. The slice view reformats onto its axis;
    **Angle** spins the view around it, **Thickness** sets the slab thickness for the
    maximum-intensity projection.
