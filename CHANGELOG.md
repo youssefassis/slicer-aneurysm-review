@@ -31,6 +31,9 @@ change for whatever produces those files. See `docs/detection-format.md`.
   `ReformatViz/Reviewer` setting says otherwise.
 - **An append-only event log** in the review: every verdict, score, note, addition, sign-off and
   reopen with its timestamp, so a verdict that was changed leaves both decisions on record.
+- **A sample case**, `data/sample_case/`: a synthetic phantom angiogram and five candidate
+  detections, three of them aneurysms, so the module can be tried without a patient volume.
+  Regenerated deterministically by `tools/make_sample_data.py`; described in `data/README.md`.
 - Apache-2.0 licence, `CITATION.cff`, and this changelog.
 - `ReformatVizLib`, a Slicer-free package holding the geometry, detection I/O and display
   maths, so that logic can be tested without launching Slicer.

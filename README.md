@@ -30,6 +30,13 @@ be decided — see `docs/development.md`. The module drives the `Reformat`, `Vol
 `Markups` and `Models` modules, all of which ship with Slicer, so there are no extension
 dependencies.
 
+## Try it
+
+`data/sample_case/` is a synthetic case — a phantom angiogram plus five candidate detections,
+three of them real — so the module can be exercised without a patient volume to hand. Point
+*Inputs → Select* at that directory. What is in the case, and which candidates are the real
+ones, is in [`data/README.md`](data/README.md).
+
 ## Use
 
 1. **Select** a directory (under *Inputs*). The first `*.nii.gz` in it is loaded as the volume

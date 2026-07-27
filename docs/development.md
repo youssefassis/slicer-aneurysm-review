@@ -79,6 +79,12 @@ For anything touching widgets, MRML nodes or the views:
 /Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths ReformatViz
 ```
 
+Open `data/sample_case/` when you need a case to work on: a synthetic volume and five
+candidates, described in [`data/README.md`](../data/README.md). Reviews of it are gitignored,
+so a trial run leaves no changes behind. `tools/make_sample_data.py` regenerates it
+deterministically from the constants at the top of that file — change the anatomy there, run
+it, and commit both files together, because `tests/test_sample_data.py` compares them.
+
 Then iterate without restarting: open the module, use the **Reload** button in *Developer
 Tools*, or `Ctrl+R` / `Cmd+R`. Note that reloading re-runs `__init__`, which clears the scene.
 

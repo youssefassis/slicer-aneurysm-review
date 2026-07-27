@@ -1,1 +1,10 @@
 __pycache__/
+
+# Reviews of the sample case. The module writes one per reviewer beside the volume as they
+# work (docs/review-format.md), so anyone who tries the sample would otherwise see it as a
+# change to the repository.
+data/**/review_*.json
+data/**/review_*.json.tmp
+
+# Finder metadata, which appears in any directory a reviewer browses to.
+.DS_Store

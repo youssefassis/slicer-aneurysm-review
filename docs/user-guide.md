@@ -24,6 +24,11 @@ Nothing you do is written into the detection file; that stays the detector's.
 **Opening the module clears the whole Slicer scene**, and so does loading a case. You do not
 need to save: every verdict is written to the review as you make it.
 
+To practise on something first, select `data/sample_case/` in the repository: a synthetic case
+with five candidates, three of which are aneurysms. Which three, and what each of the others
+is, is listed in [`../data/README.md`](../data/README.md) — so it can also be used to check
+that the module is behaving before a real case is opened.
+
 ## Reviewing a candidate
 
 The table lists candidates, most confident first:
