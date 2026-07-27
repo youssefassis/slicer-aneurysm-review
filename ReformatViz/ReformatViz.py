@@ -12,8 +12,8 @@ import ReformatVizLib
 import slicer
 import vtk
 import vtkmodules
+from ReformatVizLib import case, geometry, jsonio, rendering
 from ReformatVizLib import detections as det
-from ReformatVizLib import geometry, jsonio, rendering
 from ReformatVizLib import review as rev
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
@@ -359,50 +359,59 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def load_files(self):
         # save before loading
         dir_path = qt.QFileDialog().getExistingDirectory()
-        if dir_path:
-            # load the first volume file
-            directory = Path(dir_path)
-            nii_volume_files = sorted(directory.glob("*.nii.gz"))
-            detection_files = sorted(directory.glob("*.json"))
-            if nii_volume_files:
-                self.reset()
+        if not dir_path:
+            return
 
-                # str: Qt cannot convert a Path, and the loader hands the name straight to it.
-                slicer.util.loadVolume(str(nii_volume_files[0]))
+        # Which files make up a case is decided in ReformatVizLib, where it can be tested;
+        # the review the module itself writes into this directory is not one of them.
+        directory = Path(dir_path)
+        volumePath, detectionPath = case.find_files(directory)
+        if volumePath is None:
+            # Otherwise choosing the wrong folder is silent, which looks like a broken module.
+            slicer.util.errorDisplay(case.describe_no_volume(directory))
+            return
 
-                self.volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")[0]
-                # volume renderings view
-                volRenLogic = slicer.modules.volumerendering.logic()
-                displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(self.volNode)
-                if not displayNode:
-                    displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
-                volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
+        self.reset()
 
-                self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
+        # str: Qt cannot convert a Path, and the loader hands the name straight to it.
+        # The returned node is the one just loaded; looking it up by class afterwards would
+        # take whichever volume happens to be first in the scene.
+        self.volNode = slicer.util.loadVolume(str(volumePath))
+        # volume renderings view
+        volRenLogic = slicer.modules.volumerendering.logic()
+        displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(self.volNode)
+        if not displayNode:
+            displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
+        volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
 
-                # define the scalarOpacity function. Each of these three assignments emits
-                # valueChanged, so unblocked they rebuild the ramp against a range that is
-                # only half updated; the explicit call afterwards is the one that counts.
-                min_val, max_val = self.volNode.GetImageData().GetScalarRange()
-                wasBlocked = self.ui.volumeThreshold.blockSignals(True)
-                self.ui.volumeThreshold.maximum = max_val
-                self.ui.volumeThreshold.minimum = min_val
-                self.ui.volumeThreshold.value = (max_val+min_val)/3
-                self.ui.volumeThreshold.blockSignals(wasBlocked)
-                self.updateScalarOpacity()
+        self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
 
-                self.ui.vol_visibility.checked = 1
+        # define the scalarOpacity function. Each of these three assignments emits
+        # valueChanged, so unblocked they rebuild the ramp against a range that is
+        # only half updated; the explicit call afterwards is the one that counts.
+        min_val, max_val = self.volNode.GetImageData().GetScalarRange()
+        wasBlocked = self.ui.volumeThreshold.blockSignals(True)
+        self.ui.volumeThreshold.maximum = max_val
+        self.ui.volumeThreshold.minimum = min_val
+        self.ui.volumeThreshold.value = (max_val+min_val)/3
+        self.ui.volumeThreshold.blockSignals(wasBlocked)
+        self.updateScalarOpacity()
 
-                # detections
-                if detection_files:
-                    if not self.load_detections(detection_files[0]):
-                        return
-                    if not self.startReview(directory, nii_volume_files[0],
-                                            detection_files[0]):
-                        self.reset()
-                        return
-                    self.create_spheres()
-                    self.fillReviewTable()
+        self.ui.vol_visibility.checked = 1
+
+        # detections
+        if detectionPath is None:
+            # The volume is worth looking at on its own, so this warns rather than refusing —
+            # but with no detection file there is no review, and nothing is being recorded.
+            slicer.util.warningDisplay(case.describe_no_detections(directory))
+            return
+        if not self.load_detections(detectionPath):
+            return
+        if not self.startReview(directory, volumePath, detectionPath):
+            self.reset()
+            return
+        self.create_spheres()
+        self.fillReviewTable()
 
     def load_detections(self, file_path):
         # Parsing and validation live in ReformatVizLib; this method only turns a failure
@@ -1072,9 +1081,10 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
 
     This covers only what needs Slicer: that the module loads, that a detection file becomes
     scene nodes, that selecting a row reformats the Red slice, that two placed points become a
-    detection, and that closing the scene resets the widget. The geometry and file format are
-    covered far more thoroughly by the Slicer-free suite in `tests/`, which is where new cases
-    belong unless they genuinely need MRML.
+    detection, that the review is recorded and resumed, and that closing the scene resets the
+    widget. The geometry and file format are covered far more thoroughly by the Slicer-free
+    suite in `tests/`, which is where new cases belong unless they genuinely need MRML —
+    which file in a directory is the detection file, for instance, is `tests/test_case.py`.
     """
 
     def setUp(self):

@@ -48,6 +48,14 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- The module wrote its review into the same directory it picks the detection file from, and
+  picked that file as the first `*.json` in sorted order — so a case whose detection file
+  sorted after `review_` was opened against the module's own output and then refused. Review
+  files are no longer offered as detections.
+- Choosing a directory with no volume did nothing at all: no dialog, no message, nothing to
+  distinguish it from a broken module. It now says what a case directory has to contain, and a
+  directory holding a volume but no detection file says that the volume loaded, that there is
+  nothing to review, and that nothing is being recorded.
 - A case signed off in an earlier session came back from disk with its verdict, reason, Likert
   and note controls still editable; changing one produced an error dialog rather than the
   control being disabled. The table is now locked as it is filled.
