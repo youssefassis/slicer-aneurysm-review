@@ -1,5 +1,8 @@
 # ReformatViz — aneurysm review for 3D Slicer
 
+> Mirrored from the original repository at
+> [gitlab.inria.fr/yassis/slicer-reformat-aneurysm](https://gitlab.inria.fr/yassis/slicer-reformat-aneurysm).
+
 A [3D Slicer](https://www.slicer.org/) extension for reviewing candidate intracranial
 aneurysms on head angiography. It takes a volume plus a JSON file of candidate detections
 and, for each candidate, reformats the slice view so it **always contains the aneurysm
