@@ -65,6 +65,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
 - The view angle a reviewer left the last inspected candidate at was lost on **Clean**, on
   closing the scene and on loading the next case, because it reaches the disk when a row is
   left and nothing left the last one.
+- Recolouring the volume raised `AttributeError` when the volume had outlived its
+  volume-rendering nodes, the one call site of several here that did not check.
 - The crop ROI was sized from the volume's corner-to-corner diagonal and centred on the world
   origin, so any tilted or off-centre volume was silently clipped: a 20° gantry tilt lost half
   the field of view, and a 45° rotation collapsed the ROI to zero width.

@@ -240,15 +240,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CollapsibleButton.setLayout(self.layout_2)
 
     def set_volume_color(self, color=None):
+        if not self.volNode:
+            return
+        # The volume can outlive its rendering nodes, and every other call site here guards
+        # for it; without this the colour picker raises instead of doing nothing.
+        displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+        propertyNode = displayNode.GetVolumePropertyNode() if displayNode else None
+        if not propertyNode:
+            return
+
         color = rendering.to_rgb(color if color is not None else self.ui.volumeColor.color)
-        if self.volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
-            rangeCT = [0] * 2
-            displayNode.GetVolumePropertyNode().GetColor().GetRange(rangeCT)
-            colorTransferFunction = vtk.vtkColorTransferFunction()
-            colorTransferFunction.AddRGBPoint(rangeCT[0], color[0], color[1], color[2])
-            colorTransferFunction.AddRGBPoint(rangeCT[1], color[0], color[1], color[2])
-            displayNode.GetVolumePropertyNode().SetColor(colorTransferFunction)
+        rangeCT = [0] * 2
+        propertyNode.GetColor().GetRange(rangeCT)
+        colorTransferFunction = vtk.vtkColorTransferFunction()
+        colorTransferFunction.AddRGBPoint(rangeCT[0], color[0], color[1], color[2])
+        colorTransferFunction.AddRGBPoint(rangeCT[1], color[0], color[1], color[2])
+        propertyNode.SetColor(colorTransferFunction)
 
     def updateScalarOpacity(self):
         if self.volProp:
@@ -1114,6 +1121,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_signed_off_case_reopens_locked()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
+        self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -1382,6 +1390,19 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         item = widget.tableWidget.item(0, COL_NOTE)
         item.setText('looks like an infundibulum')
         widget.onNoteEdited(item)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_the_volume_colour_picker_survives_missing_rendering_nodes(self):
+        self.delayDisplay('Recolouring a volume with no rendering display node does nothing')
+        widget = self._widget()
+        widget.reset()
+        # Added straight to the scene, so it has no volume-rendering display node — the state
+        # Clean leaves behind, and the one every other call site here already guards for.
+        widget.volNode = self._addTestVolume()
+
+        widget.set_volume_color()
 
         widget.reset()
         self.delayDisplay('Passed')
