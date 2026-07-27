@@ -246,6 +246,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
         self.volProp : vtkmodules.vtkRenderingCore.vtkVolumeProperty=None
+        self.roiNode : slicer.vtkMRMLMarkupsROINode = None
         self.scalarOpacity=makeScalarOpacity()
 
         # The review of the case on screen, and where it is written. None means no case is
@@ -314,16 +315,37 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onVolumeOpacityChanged(self,value):
         self.updateScalarOpacity()
 
+    def currentRoiNode(self):
+        """Return the module's crop ROI if it is in the scene, else None.
+
+        Held as a reference rather than looked up by class: the first ROI in the scene is not
+        necessarily this module's, and a scene closed from the File menu takes ours with it
+        while the widget keeps pointing at it.
+        """
+        if self.roiNode is not None and slicer.mrmlScene.IsNodePresent(self.roiNode):
+            return self.roiNode
+        self.roiNode = None
+        return None
+
+    def ensureRoiNode(self):
+        """Return the crop ROI, creating it the first time and after a scene close."""
+        roiNode = self.currentRoiNode()
+        if roiNode is None:
+            roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode")
+            roiNode.SetName('')  # undisplay ROI name
+            roiNode.GetDisplayNode().SetOpacity(0.05)
+            roiNode.GetDisplayNode().SetVisibility(True)
+            self.roiNode = roiNode
+        return roiNode
+
     def onCropVisibilityChanged(self):
-        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
-        if len(roiNode) > 0:
-            roiNode=roiNode[0]
+        roiNode = self.currentRoiNode()
+        if roiNode:
             roiNode.GetDisplayNode().SetVisibility(self.ui.cropVisBox.checked)
 
     def onCropChanged(self):
-        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
         if (not self.ui.cropBox.checked) or (not self.volNode):
-            if len(roiNode)>0:
+            if self.currentRoiNode():
                 self.ui.cropVisBox.setChecked(False)
                 # This branch is also the "no volume loaded" one, and the lookup needs a
                 # volume node to search from.
@@ -333,16 +355,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         displayNode.SetCroppingEnabled(0)
         else:
             self.ui.cropVisBox.setChecked(True)
-            # print("turn on ROI")
-            if len(roiNode) == 0:
-                # First time? then Create
-                roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode")
-
-                roiNode.GetDisplayNode().SetOpacity(0.05)
-                roiNode.GetDisplayNode().SetVisibility(True)
-            else:
-                roiNode = roiNode[0]
-            roiNode.SetName('') # undisplay ROI name
+            roiNode = self.ensureRoiNode()
             if self.selected_detection >= 0:
                 position_RAS = self.detections[self.selected_detection]['center']
                 radius = [self.detections[self.selected_detection]['radius']*4 ] * 3
@@ -1067,9 +1080,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 if propertyNode:
                     slicer.mrmlScene.RemoveNode(propertyNode)
             slicer.mrmlScene.RemoveNode(self.volNode)
-        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
-        for r in roiNode:
-            slicer.mrmlScene.RemoveNode(r)
+        # Ours only. Removing every ROI in the scene took the reviewer's own along with it.
+        if self.currentRoiNode():
+            slicer.mrmlScene.RemoveNode(self.roiNode)
 
         self.removeAnnotationNodes()
 
@@ -1093,6 +1106,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.detections=[]
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
         self.volProp = None
+        self.roiNode = None
 
         # The review file itself stays on disk: it is the record of what was decided, and
         # Clean means "clear the screen", not "unsay it".
