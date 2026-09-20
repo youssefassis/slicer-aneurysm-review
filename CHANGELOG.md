@@ -1,13 +1,15 @@
 # Changelog
 
 All notable changes to this project are documented here, following
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This project has not been
-released yet; once it is, versions follow [Semantic Versioning](https://semver.org/).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
+[Semantic Versioning](https://semver.org/).
 
 Note that the **detection file format is not versioned**, and a change to it is a breaking
 change for whatever produces those files. See `docs/detection-format.md`.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-09-20
 
 ### Added
 
