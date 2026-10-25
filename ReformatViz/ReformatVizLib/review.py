@@ -46,8 +46,7 @@ DECIDED_STATES = tuple(state for state in DETECTION_STATES if state != UNREVIEWE
 #: What a rejected candidate turned out to be. Provisional vocabulary — it is the field that
 #: turns "the detector has a 40% false-positive rate" into something actionable, so it wants
 #: confirming with the reviewers before real cases are read.
-REJECTION_REASONS = ("infundibulum", "vessel_loop", "artifact", "other_pathology",
-                     "duplicate", "other")
+REJECTION_REASONS = ("infundibulum", "vessel_loop", "artifact", "other_pathology", "duplicate", "other")
 
 #: Likert values the review table offers. ``None`` means not scored.
 LIKERT_SCORES = (1, 2, 3, 4, 5)
@@ -258,8 +257,7 @@ def sign_off(review, at):
     undecided = undecided_keys(review)
     if undecided:
         raise ReviewError(
-            f"{len(undecided)} of {len(review['detections'])} candidates are still "
-            f"undecided: {', '.join(undecided)}"
+            f"{len(undecided)} of {len(review['detections'])} candidates are still undecided: {', '.join(undecided)}"
         )
     review["review"]["state"] = SIGNED_OFF
     review["review"]["signedOffAt"] = at
@@ -304,9 +302,7 @@ def validate(review):
 
     version = review.get("formatVersion")
     if version != FORMAT_VERSION:
-        raise ReviewError(
-            f"review format version {version!r}, but this is ReformatViz {FORMAT_VERSION}"
-        )
+        raise ReviewError(f"review format version {version!r}, but this is ReformatViz {FORMAT_VERSION}")
 
     for section in ("study", "source", "review", "detections"):
         if not isinstance(review.get(section), dict):
@@ -326,8 +322,7 @@ def validate(review):
     undecided = undecided_keys(review)
     if header["state"] == SIGNED_OFF and undecided:
         raise ReviewError(
-            f"the review is signed off but {len(undecided)} candidates are undecided: "
-            f"{', '.join(undecided)}"
+            f"the review is signed off but {len(undecided)} candidates are undecided: {', '.join(undecided)}"
         )
     return review
 
@@ -366,23 +361,29 @@ def describe_load_failure(path, error):
     The case is not opened at all in this situation, which the message has to say: silently
     starting a fresh review would overwrite the one that could not be read.
     """
-    return ("This case has a review file that cannot be read, so the case has not been "
-            f"opened. Nothing has been written to it.\n\n{Path(path).name}: {error}")
+    return (
+        "This case has a review file that cannot be read, so the case has not been "
+        f"opened. Nothing has been written to it.\n\n{Path(path).name}: {error}"
+    )
 
 
 def describe_save_failure(path, error):
     """Return the message shown to the reviewer when :func:`save` fails."""
-    return ("Saving the review failed — the verdicts recorded so far are still in the module "
-            "but are not on disk. The previous review file has been left unchanged."
-            f"\n\n{Path(path).name}: {error}")
+    return (
+        "Saving the review failed — the verdicts recorded so far are still in the module "
+        "but are not on disk. The previous review file has been left unchanged."
+        f"\n\n{Path(path).name}: {error}"
+    )
 
 
 def describe_source_mismatch(review):
     """Return the warning shown when the detection file changed under an existing review."""
-    return ("The detection file has changed since this review was started, so the candidates "
-            "on screen may not be the ones that were reviewed. The existing verdicts have "
-            f"been loaded unchanged.\n\nReview started {review['review']['startedAt']} by "
-            f"{review['review']['reviewer']}.")
+    return (
+        "The detection file has changed since this review was started, so the candidates "
+        "on screen may not be the ones that were reviewed. The existing verdicts have "
+        f"been loaded unchanged.\n\nReview started {review['review']['startedAt']} by "
+        f"{review['review']['reviewer']}."
+    )
 
 
 #: What every file :func:`file_name` produces starts with. The review is written into the

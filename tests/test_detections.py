@@ -37,8 +37,15 @@ class TestAddMissingInfo:
         assert d["aneurysm"] is False
 
     def test_never_overwrites_what_the_producer_supplied(self):
-        given = {"P1": [0, 0, 0], "P2": [4, 0, 0], "center": [9, 9, 9],
-                 "radius": 99, "confidence": 0.5, "viewAngle": 42, "aneurysm": True}
+        given = {
+            "P1": [0, 0, 0],
+            "P2": [4, 0, 0],
+            "center": [9, 9, 9],
+            "radius": 99,
+            "confidence": 0.5,
+            "viewAngle": 42,
+            "aneurysm": True,
+        }
         assert det.add_missing_info(dict(given)) == given
 
     def test_coincident_points_give_a_zero_radius_rather_than_failing(self):
@@ -78,35 +85,41 @@ class TestValidate:
     def test_accepts_the_sample_file(self):
         assert len(det.validate(json.loads(SAMPLE.read_text()))) == 3
 
-    @pytest.mark.parametrize("data, expected", [
-        ({}, "no detection"),
-        (None, "no detection"),
-        ([{"P1": [0, 0, 0], "P2": [1, 0, 0]}], "got list"),
-        (42, "got int"),
-        ({"a": 5}, "expected an object"),
-        ({"a": "oops"}, "expected an object"),
-        ({"a": {"P2": [1, 0, 0]}}, "'a' has no P1"),
-        ({"a": {"P1": [0, 0, 0]}}, "'a' has no P2"),
-        ({"a": {}}, "'a' has no P1 or P2"),
-        # A list happens to contain the strings "P1" and "P2", so the key-presence check alone
-        # let this through and it crashed later on `d["P1"]` with a list index TypeError.
-        ({"a": ["P1", "P2"]}, "expected an object"),
-    ])
+    @pytest.mark.parametrize(
+        "data, expected",
+        [
+            ({}, "no detection"),
+            (None, "no detection"),
+            ([{"P1": [0, 0, 0], "P2": [1, 0, 0]}], "got list"),
+            (42, "got int"),
+            ({"a": 5}, "expected an object"),
+            ({"a": "oops"}, "expected an object"),
+            ({"a": {"P2": [1, 0, 0]}}, "'a' has no P1"),
+            ({"a": {"P1": [0, 0, 0]}}, "'a' has no P2"),
+            ({"a": {}}, "'a' has no P1 or P2"),
+            # A list happens to contain the strings "P1" and "P2", so the key-presence check alone
+            # let this through and it crashed later on `d["P1"]` with a list index TypeError.
+            ({"a": ["P1", "P2"]}, "expected an object"),
+        ],
+    )
     def test_rejects_with_a_message_naming_the_problem(self, data, expected):
         with pytest.raises(det.DetectionFormatError, match=expected):
             det.validate(data)
 
-    @pytest.mark.parametrize("value", [
-        "oops",                       # a string, not a position
-        [0, 0],                       # too short
-        [0, 0, 0, 0],                 # too long
-        [0, 0, None],                 # a null coordinate
-        [0, 0, "x"],                  # a non-numeric coordinate
-        [0, 0, float("nan")],         # json accepts the NaN literal by default
-        [0, 0, float("inf")],
-        {"x": 0, "y": 0, "z": 0},     # an object instead of an array
-        None,
-    ])
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "oops",  # a string, not a position
+            [0, 0],  # too short
+            [0, 0, 0, 0],  # too long
+            [0, 0, None],  # a null coordinate
+            [0, 0, "x"],  # a non-numeric coordinate
+            [0, 0, float("nan")],  # json accepts the NaN literal by default
+            [0, 0, float("inf")],
+            {"x": 0, "y": 0, "z": 0},  # an object instead of an array
+            None,
+        ],
+    )
     def test_rejects_a_malformed_position(self, value):
         # These used to escape validation and surface as a numpy TypeError or a broadcast
         # error, which the GUI does not catch — the reviewer got a console traceback and an
@@ -130,8 +143,17 @@ class TestValidate:
             det.validate(data)
 
     def test_accepts_the_number_types_a_producer_actually_writes(self):
-        data = {"a": {"P1": [0, 0, 0], "P2": [1, 2, 3.5], "confidence": 1,
-                      "radius": 2.5, "viewAngle": -180, "aneurysm": True, "Likert": 4}}
+        data = {
+            "a": {
+                "P1": [0, 0, 0],
+                "P2": [1, 2, 3.5],
+                "confidence": 1,
+                "radius": 2.5,
+                "viewAngle": -180,
+                "aneurysm": True,
+                "Likert": 4,
+            }
+        }
         assert len(det.validate(data)) == 1
 
     def test_a_single_bad_entry_rejects_the_whole_file(self):
@@ -161,11 +183,14 @@ class TestLoad:
         # An added detection carries confidence 1 because there is no detector score to
         # record, so sorting on confidence alone promoted it above every real candidate on
         # reload — the opposite of where the reviewer left it.
-        source = write(tmp_path, {
-            "0": {"P1": [0, 0, 0], "P2": [1, 0, 0], "confidence": 0.9},
-            "1": {"P1": [0, 0, 0], "P2": [2, 0, 0], "confidence": 1, "added": 1},
-            "2": {"P1": [0, 0, 0], "P2": [3, 0, 0], "confidence": 0.4},
-        })
+        source = write(
+            tmp_path,
+            {
+                "0": {"P1": [0, 0, 0], "P2": [1, 0, 0], "confidence": 0.9},
+                "1": {"P1": [0, 0, 0], "P2": [2, 0, 0], "confidence": 1, "added": 1},
+                "2": {"P1": [0, 0, 0], "P2": [3, 0, 0], "confidence": 0.4},
+            },
+        )
         loaded = det.load(source)
         assert [d["confidence"] for d in loaded] == [0.9, 0.4, 1]
         assert loaded[-1].get("added") == 1
@@ -211,8 +236,7 @@ class TestSourceKey:
     def test_a_producer_value_in_that_field_is_overwritten_not_trusted(self, tmp_path):
         # It is derived, and a producer claiming a key that is not its own would break the
         # join silently.
-        path = write(tmp_path, {"real": {"P1": [0, 0, 0], "P2": [2, 0, 0],
-                                        det.SOURCE_KEY: "something-else"}})
+        path = write(tmp_path, {"real": {"P1": [0, 0, 0], "P2": [2, 0, 0], det.SOURCE_KEY: "something-else"}})
         assert det.load(path)[0][det.SOURCE_KEY] == "real"
 
     def test_a_malformed_entry_still_reports_its_own_name(self, tmp_path):

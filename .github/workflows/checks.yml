@@ -52,6 +52,10 @@ jobs:
       - name: ruff
         run: ruff check .
 
+      - name: ruff format
+        if: always()
+        run: ruff format --check .
+
       - name: pytest
         if: always()
         run: python -m pytest --junitxml=report.xml

@@ -75,12 +75,14 @@ def from_points(p1, p2):
     the file. The positions are converted to plain lists, because they arrive as numpy arrays
     from the markups node and have to survive :func:`save`.
     """
-    return add_missing_info({
-        "P1": np.asarray(p1).tolist(),
-        "P2": np.asarray(p2).tolist(),
-        "aneurysm": 1,
-        "added": 1,
-    })
+    return add_missing_info(
+        {
+            "P1": np.asarray(p1).tolist(),
+            "P2": np.asarray(p2).tolist(),
+            "aneurysm": 1,
+            "added": 1,
+        }
+    )
 
 
 def _is_number(value):
@@ -90,8 +92,7 @@ def _is_number(value):
 
 def _is_position(value):
     """True for an ``[x, y, z]`` of finite numbers."""
-    return (isinstance(value, (list, tuple)) and len(value) == 3
-            and all(_is_number(c) for c in value))
+    return isinstance(value, (list, tuple)) and len(value) == 3 and all(_is_number(c) for c in value)
 
 
 def _validate_entry(key, d):
@@ -110,9 +111,7 @@ def _validate_entry(key, d):
 
     for name in POSITION_KEYS:
         if name in d and not _is_position(d[name]):
-            raise DetectionFormatError(
-                f"detection '{key}' has a malformed {name}: expected three finite numbers"
-            )
+            raise DetectionFormatError(f"detection '{key}' has a malformed {name}: expected three finite numbers")
     for name in NUMBER_KEYS:
         if name in d and not _is_number(d[name]):
             raise DetectionFormatError(f"detection '{key}' has a non-numeric {name}")
@@ -129,9 +128,7 @@ def validate(data):
     if not data:
         raise DetectionFormatError("file holds no detection")
     if not hasattr(data, "items"):
-        raise DetectionFormatError(
-            f"expected a JSON object mapping names to detections, got {type(data).__name__}"
-        )
+        raise DetectionFormatError(f"expected a JSON object mapping names to detections, got {type(data).__name__}")
     for key, d in data.items():
         _validate_entry(key, d)
     return list(data.values())

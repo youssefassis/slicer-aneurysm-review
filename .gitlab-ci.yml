@@ -24,6 +24,7 @@ lint:
   stage: check
   script:
     - ruff check .
+    - ruff format --check .
   # Also fails if ReformatVizLib ever imports slicer/vtk/qt: the banned-api rules in
   # pyproject.toml are what keep the core testable.
 

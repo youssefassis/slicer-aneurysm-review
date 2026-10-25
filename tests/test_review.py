@@ -14,8 +14,9 @@ SOURCE = {"detectionFile": "detections.json", "sha256": "abc123"}
 
 
 def blank(*keys):
-    return review.new(STUDY, SOURCE, reviewer="ykerrien", tool="ReformatViz 0.1.0",
-                      at=START, keys=keys or ("c0", "c1", "c2"))
+    return review.new(
+        STUDY, SOURCE, reviewer="ykerrien", tool="ReformatViz 0.1.0", at=START, keys=keys or ("c0", "c1", "c2")
+    )
 
 
 class TestNew:
@@ -76,9 +77,13 @@ class TestUndecidedIsAState:
         r = blank()
         review.set_state(r, "c0", review.CONFIRMED, LATER)
         review.set_state(r, "c1", review.UNCERTAIN, LATER)
-        assert review.counts(r) == {review.UNREVIEWED: 1, review.CONFIRMED: 1,
-                                    review.REJECTED: 0, review.UNCERTAIN: 1,
-                                    review.NOT_ASSESSABLE: 0}
+        assert review.counts(r) == {
+            review.UNREVIEWED: 1,
+            review.CONFIRMED: 1,
+            review.REJECTED: 0,
+            review.UNCERTAIN: 1,
+            review.NOT_ASSESSABLE: 0,
+        }
 
 
 class TestSetState:
@@ -272,10 +277,12 @@ class TestSignOff:
     def test_a_signed_off_case_refuses_changes(self):
         r = self.decided()
         review.sign_off(r, LATEST)
-        for change in (lambda: review.set_state(r, "c0", review.REJECTED, LATEST, reason="other"),
-                       lambda: review.set_likert(r, "c0", 2, LATEST),
-                       lambda: review.set_note(r, "c0", "x", LATEST),
-                       lambda: review.add_detection(r, [0, 0, 0], [0, 0, 1], LATEST)):
+        for change in (
+            lambda: review.set_state(r, "c0", review.REJECTED, LATEST, reason="other"),
+            lambda: review.set_likert(r, "c0", 2, LATEST),
+            lambda: review.set_note(r, "c0", "x", LATEST),
+            lambda: review.add_detection(r, [0, 0, 0], [0, 0, 1], LATEST),
+        ):
             with pytest.raises(review.ReviewError, match="signed off"):
                 change()
 
@@ -287,8 +294,7 @@ class TestSignOff:
         review.reopen(r, LATEST, reason="second read requested")
         assert r["review"]["state"] == review.IN_REVIEW
         assert r["review"]["signedOffAt"] is None
-        assert r["events"][-1] == {"at": LATEST, "what": "reopened",
-                                   "reason": "second read requested"}
+        assert r["events"][-1] == {"at": LATEST, "what": "reopened", "reason": "second read requested"}
 
     def test_the_earlier_sign_off_stays_in_the_log_after_reopening(self):
         # An amendment must not erase the fact that the case was once signed off.
@@ -319,8 +325,7 @@ class TestEvents:
         r = blank()
         review.set_state(r, "c0", review.CONFIRMED, LATER)
         review.set_likert(r, "c0", 5, LATEST)
-        assert [(e["at"], e["what"]) for e in r["events"]] == [
-            (LATER, "state"), (LATEST, "likert")]
+        assert [(e["at"], e["what"]) for e in r["events"]] == [(LATER, "state"), (LATEST, "likert")]
 
     def test_a_verdict_that_was_changed_leaves_both_decisions_in_the_log(self):
         # The audit trail is what the verdict was and when, not only what it ended up as.
@@ -349,12 +354,15 @@ class TestFile:
     def test_the_file_is_named_after_the_reviewer(self):
         assert review.file_name("ykerrien") == "review_ykerrien.json"
 
-    @pytest.mark.parametrize("reviewer, expected", [
-        ("Dr O'Neill", "review_Dr_O_Neill.json"),
-        ("domain\\user", "review_domain_user.json"),
-        ("../escape", "review_.._escape.json"),
-        ("", "review_unknown.json"),
-    ])
+    @pytest.mark.parametrize(
+        "reviewer, expected",
+        [
+            ("Dr O'Neill", "review_Dr_O_Neill.json"),
+            ("domain\\user", "review_domain_user.json"),
+            ("../escape", "review_.._escape.json"),
+            ("", "review_unknown.json"),
+        ],
+    )
     def test_a_reviewer_name_cannot_reach_outside_the_case_directory(self, reviewer, expected):
         # The name comes from the OS or a setting, so it is not necessarily a safe file name.
         assert review.file_name(reviewer) == expected
@@ -385,13 +393,15 @@ class TestFile:
         with pytest.raises(review.ReviewError, match="who made it"):
             review.load(path)
 
-    @pytest.mark.parametrize("field, value", [
-        ("state", "probably"),
-        ("reason", "looked odd"),
-        ("likert", 9),
-    ])
-    def test_a_candidate_with_a_value_outside_the_vocabulary_is_refused(self, tmp_path,
-                                                                       field, value):
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("state", "probably"),
+            ("reason", "looked odd"),
+            ("likert", 9),
+        ],
+    )
+    def test_a_candidate_with_a_value_outside_the_vocabulary_is_refused(self, tmp_path, field, value):
         r = blank("c0")
         r["detections"]["c0"][field] = value
         path = tmp_path / "review.json"

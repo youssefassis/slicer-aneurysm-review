@@ -34,7 +34,7 @@ def read_nifti_header(path):
     """
     with gzip.open(path, "rb") as f:
         header = f.read(348)
-    sizeof_hdr, = struct.unpack_from("<i", header, 0)
+    (sizeof_hdr,) = struct.unpack_from("<i", header, 0)
     dim = struct.unpack_from("<8h", header, 40)
     pixdim = struct.unpack_from("<8f", header, 76)
     srow = [struct.unpack_from("<4f", header, offset) for offset in (280, 296, 312)]

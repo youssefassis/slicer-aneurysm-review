@@ -59,8 +59,7 @@ class TestIsVisible:
 
 class TestScalarOpacityPoints:
     def ramp(self, **kwargs):
-        params = dict(min_value=0, max_value=1000, threshold=300, opacity=0.8,
-                      margin=20, translucent=False)
+        params = dict(min_value=0, max_value=1000, threshold=300, opacity=0.8, margin=20, translucent=False)
         params.update(kwargs)
         return rendering.scalar_opacity_points(**params)
 

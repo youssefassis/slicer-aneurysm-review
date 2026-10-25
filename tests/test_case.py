@@ -21,8 +21,7 @@ class TestFindFiles:
         # The bug this function exists for: the review is written beside the detections and
         # shares their suffix, so a detection file sorting after `review_` was opened against
         # the module's own output and the case was refused.
-        build(tmp_path, "angio.nii.gz", "vessels.json",
-              review.file_name("ykerrien"))
+        build(tmp_path, "angio.nii.gz", "vessels.json", review.file_name("ykerrien"))
         _, detections = case.find_files(tmp_path)
         assert detections == tmp_path / "vessels.json"
 
