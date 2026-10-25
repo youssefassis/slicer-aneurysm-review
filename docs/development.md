@@ -191,10 +191,10 @@ working on the code.
   confirm with the lab, then set it consistently across the headers.
 - **The supported Slicer version.** The code is developed and tested against 5.12.3; confirm
   that is what the lab reviews with, then pin the same version in CI.
-- **The extension metadata** in the top-level `CMakeLists.txt`, which still carries the
-  wizard's "John Doe (AnyWare Corp.)" contributor and `example.com` URLs.
-- **A real screenshot.** `ReformatViz.png` is still the extension wizard's placeholder icon,
-  not a picture of the module.
+- **A real icon.** The extension metadata in the top-level `CMakeLists.txt` is filled in and
+  `docs/module-panel.jpg` is a screenshot of the module, but the icon it points to,
+  `ReformatViz/Resources/Icons/ReformatViz.png` (and its copy `ReformatViz.png` in the root),
+  is still the extension wizard's placeholder.
 - **How the software should be cited**, if at all. `CITATION.cff` was removed; making the
   software citable means adding it back, along with a DOI from an archive such as Zenodo, HAL
   or Software Heritage.
