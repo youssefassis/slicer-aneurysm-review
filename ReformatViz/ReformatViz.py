@@ -233,6 +233,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.review = None
         self.reviewPath = None
         self.autosaveFailed = False
+        # A view angle changed in memory but not yet on disk; see saveViewAngle.
+        self.angleUnsaved = False
 
         self.prepare_slices()
 
@@ -371,8 +373,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if self.detections and self.selected_detection >= 0:
                 d = self.detections[self.selected_detection]
                 d["viewAngle"] = value
-                if self.reviewEntry(d):
+                entry = self.reviewEntry(d)
+                # prepare_slices re-applies the stored angle on every row click; only a real
+                # change needs writing out.
+                if entry and entry["viewAngle"] != value:
                     rev.set_view_angle(self.review, d[det.SOURCE_KEY], value)
+                    self.angleUnsaved = True
             self.reformatLogic.SetSliceNormal(node, geometry.slice_normal(self.candidateRz, value))
             # Read back the slice axes Slicer settled on, then roll in-plane so the
             # candidate stays upright instead of tumbling as the reviewer rotates.
@@ -561,6 +567,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 slicer.util.errorDisplay(rev.describe_save_failure(self.reviewPath, e))
             return
         self.autosaveFailed = False
+        self.angleUnsaved = False
+
+    def saveViewAngle(self):
+        """Write the review out if the only change since the last save is a view angle."""
+        if self.angleUnsaved:
+            self.saveReview()
 
     def applyToReview(self, change):
         """Make one change to the review, then write it out and refresh the progress."""
@@ -804,36 +816,52 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Leaving a row is where the angle it was left at reaches the disk: the slider itself
         # changes it far too often to write out every time.
-        self.saveReview()
-        self.updateObjectsDisplay()
+        self.saveViewAngle()
+        self.updateVisibility()
         self.prepare_slices()
 
     def unselectAllRows(self, reset_view=True):
         self.tableWidget.clearSelection()
         self.selected_detection = -1
-        self.updateObjectsDisplay()
+        self.updateVisibility()
         if reset_view:
             self.prepare_slices()
 
     def create_spheres(self):
-
-        for d in self.detections:
-            self.add_detection_to_scene(d)
-
-        self.updateObjectsDisplay()
+        # One scene update for the whole case rather than one per node change: unbatched,
+        # every model, display node and control point added was processed on its own, which
+        # cost about 50 ms per candidate.
+        self.ensureMarkupsNodes()
+        markups = (self.confidences, self.bases, self.tips)
+        slicer.mrmlScene.StartState(slicer.mrmlScene.BatchProcessState)
+        # The markups nodes too: each control point added is otherwise its own modification.
+        wereModifying = [node.StartModify() for node in markups]
+        try:
+            for d in self.detections:
+                self.add_detection_to_scene(d)
+            self.updateObjectsDisplay()
+        finally:
+            for node, wasModifying in zip(markups, wereModifying, strict=True):
+                node.EndModify(wasModifying)
+            slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
 
     def updateObjectsDisplay(self):
         self.set_lines_color()
-        self.set_lines_visibility()
-
         self.set_spheres_color()
         self.set_spheres_opacity()
-        self.set_spheres_visibility()
-
         self.set_markups_color()
-        self.set_markups_visibility()
-
         self.set_confidence_color()
+        self.updateVisibility()
+
+    def updateVisibility(self):
+        """Show the selected candidate's annotations, or every candidate's with none selected.
+
+        The only part of the display a change of selection affects; colours and opacity
+        follow their own controls.
+        """
+        self.set_lines_visibility()
+        self.set_spheres_visibility()
+        self.set_markups_visibility()
         self.set_confidence_visibility()
 
     def ensureMarkupsNodes(self):
@@ -1115,10 +1143,23 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             detection = det.from_points(p1, p2)
             self.tmpSphereSource.SetCenter(detection["center"])
             self.tmpSphereSource.SetRadius(detection["radius"])
+            # No forced render: the preview model observes this source, so Update() already
+            # asks the views to redraw at their own rate. Forcing it rendered every view
+            # synchronously on each mouse move of the drag.
             self.tmpSphereSource.Update()
-            slicer.util.forceRenderAllViews()
 
     def reset(self):
+        # Batched for the same reason as create_spheres: about 60 ms per candidate otherwise.
+        slicer.mrmlScene.StartState(slicer.mrmlScene.BatchProcessState)
+        try:
+            self.removeCaseNodes()
+        finally:
+            slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
+        self.removeAnnotationNodes()
+        self.forgetSceneState()
+
+    def removeCaseNodes(self):
+        """Remove what this module added to the scene for the open case, and nothing else."""
         for node in self.spheres:
             slicer.mrmlScene.RemoveNode(node)
         for node in self.lines:
@@ -1146,10 +1187,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.currentRoiNode():
             slicer.mrmlScene.RemoveNode(self.roiNode)
 
-        self.removeAnnotationNodes()
-
-        self.forgetSceneState()
-
     def forgetSceneState(self):
         """Bring the widget's own state back in line with an empty scene.
 
@@ -1161,7 +1198,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # changes it far too often to write on every move — so the row they were on when they
         # pressed Clean, closed the scene or opened the next case has yet to be written. A
         # review that failed to load is None here, and is left exactly as it is on disk.
-        self.saveReview()
+        self.saveViewAngle()
 
         self.spheres = []
         self.lines = []
@@ -1176,6 +1213,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.review = None
         self.reviewPath = None
         self.autosaveFailed = False
+        self.angleUnsaved = False
 
         self.populatingTable = True
         self.tableWidget.setRowCount(0)
@@ -1252,6 +1290,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_opening_and_closing_cases_leaves_no_roi_behind()
         self.test_closing_without_volume_rendering_still_saves_the_angle()
         self.test_a_new_case_takes_the_colour_and_crop_on_screen()
+        self.test_moving_between_rows_rewrites_the_review_only_for_a_new_angle()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
@@ -1696,6 +1735,31 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.ui.cropBox.checked = False
         widget.reset()
         widget.ui.volumeColor.color = originalColour
+        self.delayDisplay("Passed")
+
+    def test_moving_between_rows_rewrites_the_review_only_for_a_new_angle(self):
+        self.delayDisplay("Browsing rows leaves the review file alone; a new angle is written")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+        reviewFile = self._reviewFile(directory)
+
+        # A first visit records the angle the row opens at: candidate_1's comes from the
+        # detection file, which the new review does not hold yet.
+        for row in (0, 1, 2):
+            widget.onRowSelected(row)
+        widget.onRowSelected(-1)
+        before = reviewFile.stat().st_mtime_ns
+        for row in (0, 1, 2, 0):
+            widget.onRowSelected(row)
+        self.assertEqual(reviewFile.stat().st_mtime_ns, before)
+
+        widget.rotateAxisSlider(42)
+        widget.onRowSelected(1)
+        self.assertEqual(rev.entry(rev.load(reviewFile), widget.detections[0][det.SOURCE_KEY])["viewAngle"], 42)
+
+        widget.reset()
         self.delayDisplay("Passed")
 
     def test_the_last_view_angle_survives_clean(self):
