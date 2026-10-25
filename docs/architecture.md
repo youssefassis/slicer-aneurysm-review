@@ -76,17 +76,18 @@ slice behind it.
 
 ### Index-parallel scene nodes
 
-Five collections are indexed in lockstep with `self.detections`:
+Three collections are indexed in lockstep with `self.detections`:
+`self.confidences`, `self.bases`, `self.tips` — three single `vtkMRMLMarkupsFiducialNode`s
+whose **Nth control point** belongs to detection *N* (`add_detection_to_scene`).
 
-- `self.spheres[i]`, `self.lines[i]` — a `vtkMRMLModelNode` each, per detection
-- `self.confidences`, `self.bases`, `self.tips` — three single `vtkMRMLMarkupsFiducialNode`s
-  whose **Nth control point** belongs to detection *N*
-
-Anything that adds a detection must extend all five (`add_detection_to_scene`), and `reset()`
-tears all five down together. There is no per-detection removal path, and nothing in the UI
-deletes a single detection — which is what makes the positional scheme survivable. Adding
-deletion means threading it through all five collections plus the table rows, which is why
-replacing this with an object that owns its own nodes is the obvious next refactor.
+The spheres and lines are not per detection. `rebuildMeshes()` derives two meshes from
+`self.detections` — `self.allSpheres`, `self.allLines` — and the case has exactly two model
+nodes, `self.sphereModel` and `self.lineModel`. With nothing selected they show those meshes;
+with a candidate selected, `showMesh` swaps in that candidate's sphere or line alone, which is
+the same rule `rendering.is_visible` applies to the markups points. Anything that adds a
+detection must add its control points and call `rebuildMeshes()`, and `reset()` tears both
+down. There is no per-detection removal path, and nothing in the UI deletes a single
+detection — which is what keeps the positional scheme survivable.
 
 ### The review
 
@@ -127,10 +128,12 @@ views as a click does.
 
 Measured in Slicer 5.12.4 with 200 candidates:
 
+- **A case is two model nodes, whatever its size.** One model per candidate made opening and
+  cleaning a case cost Slicer's per-node price 400 times over: 10.5 s and 13.4 s, then 2.0 s
+  and 3.0 s once batched. With one mesh per kind they take 0.96 s and 67 ms, the case holds
+  30 MB instead of 207 MB, and it adds 11 scene nodes instead of 807.
 - **Opening a case and Clean are batched** (`BatchProcessState`, and `StartModify` on the
-  three markups nodes). Unbatched, every node and control point was processed on its own:
-  10.5 s to open and 13.4 s to clean, against 2.0 s and 3.0 s. What remains is Slicer's own cost
-  of adding and removing two model nodes per candidate.
+  three markups nodes), so the control points are not processed one at a time.
 - **Nothing forces a render.** The preview sphere's model observes its source, so `Update()`
   already asks the views to redraw at their own rate; forcing it made each mouse move of a
   drag render every view synchronously (57 ms of handler time, now 4.5 ms).

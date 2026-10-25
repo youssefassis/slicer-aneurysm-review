@@ -75,6 +75,27 @@ def createSphere(center, radius):
     return sphere
 
 
+def createLine(p1, p2):
+    line = vtk.vtkLineSource()
+    line.SetPoint1(p1)
+    line.SetPoint2(p2)
+    line.Update()
+    return line
+
+
+def appendedMesh(sources):
+    """Return one mesh holding every source's output, so a whole case is a single model."""
+    mesh = vtk.vtkPolyData()
+    if not sources:
+        return mesh
+    append = vtk.vtkAppendPolyData()
+    for source in sources:
+        append.AddInputData(source.GetOutput())
+    append.Update()
+    mesh.ShallowCopy(append.GetOutput())
+    return mesh
+
+
 def createModel(model, name):
     node = slicer.modules.models.logic().AddModel(model.GetOutput())
     node.SetName(name)
@@ -212,8 +233,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Create the session-long nodes and the state the rest of the widget assumes."""
         self.dataProbeWasVisible = True
         self.ensureMarkupsNodes()
-        self.spheres = []
-        self.lines = []
+        self.forgetMeshes()
 
         self.selected_detection = -1
         self.detections = []
@@ -839,6 +859,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
             for d in self.detections:
                 self.add_detection_to_scene(d)
+            self.rebuildMeshes()
             self.updateObjectsDisplay()
         finally:
             for node, wasModifying in zip(markups, wereModifying, strict=True):
@@ -881,26 +902,38 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not node.GetDisplayNode():
                 node.CreateDefaultDisplayNodes()
 
+    def forgetMeshes(self):
+        """Drop the references to the case's two models and their meshes. Removes nothing."""
+        self.sphereModel: slicer.vtkMRMLModelNode = None
+        self.lineModel: slicer.vtkMRMLModelNode = None
+        self.allSpheres = vtk.vtkPolyData()
+        self.allLines = vtk.vtkPolyData()
+
+    def ensureMeshModels(self):
+        """Create the sphere and line models, or replace them if they left the scene."""
+        for attribute, name in (("sphereModel", "Spheres"), ("lineModel", "Lines")):
+            node = getattr(self, attribute)
+            if node is None or not slicer.mrmlScene.IsNodePresent(node):
+                node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", name)
+                node.CreateDefaultDisplayNodes()
+                node.GetDisplayNode().SetVisibility2D(True)
+                node.GetDisplayNode().SetSliceIntersectionThickness(2)
+                setattr(self, attribute, node)
+
+    def rebuildMeshes(self):
+        """Rebuild the meshes holding every candidate's sphere and every candidate's line.
+
+        One model per kind rather than one per candidate: Slicer's cost of adding and
+        removing a model node is what opening and cleaning a case was made of, about 10 ms
+        per candidate. Which candidates a model shows is decided in updateVisibility.
+        """
+        self.ensureMeshModels()
+        self.allSpheres = appendedMesh([createSphere(d["center"], d["radius"]) for d in self.detections])
+        self.allLines = appendedMesh([createLine(d["P1"], d["P2"]) for d in self.detections])
+
     def add_detection_to_scene(self, d):
-        # Sphere
-        sphere = createSphere(d["center"], d["radius"])
-
-        # Assign a unique name to each sphere
-        idx = len(self.spheres)
-        m = createModel(sphere, name=f"Sphere_{idx}")
-        self.spheres.append(m)
-
-        # Line
-        line = vtk.vtkLineSource()
-        line.SetPoint1(d["P1"])
-        line.SetPoint2(d["P2"])
-        line.SetResolution(30)
-        line.Update()
-        m = createModel(line, name=f"Line_{idx}")
-        self.lines.append(m)
-
+        """Add a detection's three markups points. Its sphere and line are in rebuildMeshes."""
         self.ensureMarkupsNodes()
-
         # Confidence score label, the base and the tip: the Nth control point of each
         # belongs to detection N.
         n = self.confidences.AddControlPoint(d["center"])
@@ -908,31 +941,55 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.bases.AddControlPoint(d["P1"])
         self.tips.AddControlPoint(d["P2"])
 
+    def selectedCandidate(self):
+        """Return the selected detection, or None when every candidate is on show."""
+        if 0 <= self.selected_detection < len(self.detections):
+            return self.detections[self.selected_detection]
+        return None
+
+    def showMesh(self, model, allCandidates, selectedOnly, checked):
+        """Show ``model`` with every candidate, or with the selected one alone.
+
+        The same rule rendering.is_visible applies per markups point, for a model that holds
+        them all: with a candidate selected, its neighbours are hidden.
+        """
+        if model is None or not slicer.mrmlScene.IsNodePresent(model):
+            return
+        d = self.selectedCandidate()
+        model.SetAndObservePolyData(allCandidates if d is None else selectedOnly(d).GetOutput())
+        model.GetDisplayNode().SetVisibility(checked)
+
     def set_spheres_visibility(self):
-        for i in range(len(self.detections)):
-            self.spheres[i].GetDisplayNode().SetVisibility(
-                rendering.is_visible(i, self.selected_detection, self.ui.SpheresVisibility.checked)
-            )
+        self.showMesh(
+            self.sphereModel,
+            self.allSpheres,
+            lambda d: createSphere(d["center"], d["radius"]),
+            self.ui.SpheresVisibility.checked,
+        )
 
     def set_spheres_color(self, color=None):
-        color = rendering.to_rgb(color if color is not None else self.ui.SpheresColorPicker.color)
-        for i in range(len(self.detections)):
-            self.spheres[i].GetDisplayNode().SetColor(color)
+        if self.sphereModel:
+            self.sphereModel.GetDisplayNode().SetColor(
+                rendering.to_rgb(color if color is not None else self.ui.SpheresColorPicker.color)
+            )
 
     def set_spheres_opacity(self):
-        for i in range(len(self.detections)):
-            self.spheres[i].GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
+        if self.sphereModel:
+            self.sphereModel.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
 
     def set_lines_color(self, color=None):
-        color = rendering.to_rgb(color if color is not None else self.ui.LinesColorPicker.color)
-        for i in range(len(self.detections)):
-            self.lines[i].GetDisplayNode().SetColor(color)
+        if self.lineModel:
+            self.lineModel.GetDisplayNode().SetColor(
+                rendering.to_rgb(color if color is not None else self.ui.LinesColorPicker.color)
+            )
 
     def set_lines_visibility(self):
-        for i in range(len(self.detections)):
-            self.lines[i].GetDisplayNode().SetVisibility(
-                rendering.is_visible(i, self.selected_detection, self.ui.LinesVisibility.checked)
-            )
+        self.showMesh(
+            self.lineModel,
+            self.allLines,
+            lambda d: createLine(d["P1"], d["P2"]),
+            self.ui.LinesVisibility.checked,
+        )
 
     def set_confidence_color(self, color=None):
         if self.confidences.GetDisplayNode():
@@ -1088,6 +1145,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.detections.append(detection)
         self.add_detection_to_table(detection)
         self.add_detection_to_scene(detection)
+        self.rebuildMeshes()
         self.selected_detection = self.tableWidget.rowCount - 1
         self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection, 0))
         self.onRowSelected(self.selected_detection)
@@ -1160,10 +1218,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def removeCaseNodes(self):
         """Remove what this module added to the scene for the open case, and nothing else."""
-        for node in self.spheres:
-            slicer.mrmlScene.RemoveNode(node)
-        for node in self.lines:
-            slicer.mrmlScene.RemoveNode(node)
+        for node in (self.sphereModel, self.lineModel):
+            if node is not None and slicer.mrmlScene.IsNodePresent(node):
+                slicer.mrmlScene.RemoveNode(node)
         self.confidences.RemoveAllControlPoints()
         self.bases.RemoveAllControlPoints()
         self.tips.RemoveAllControlPoints()
@@ -1200,8 +1257,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # review that failed to load is None here, and is left exactly as it is on disk.
         self.saveViewAngle()
 
-        self.spheres = []
-        self.lines = []
+        self.forgetMeshes()
         self.detections = []
         self.volNode: slicer.vtkMRMLScalarVolumeNode = None
         self.volProp = None
@@ -1291,6 +1347,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_closing_without_volume_rendering_still_saves_the_angle()
         self.test_a_new_case_takes_the_colour_and_crop_on_screen()
         self.test_moving_between_rows_rewrites_the_review_only_for_a_new_angle()
+        self.test_one_model_shows_every_candidate_or_the_selected_one()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
@@ -1343,8 +1400,8 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # The row, the sphere, the line and the three markups points all have to arrive
         # together, or the positional invariant between them is already broken.
         self.assertEqual(widget.tableWidget.rowCount, 1)
-        self.assertEqual(len(widget.spheres), 1)
-        self.assertEqual(len(widget.lines), 1)
+        self.assertEqual(self._spheresIn(widget.allSpheres), 1)
+        self.assertEqual(widget.allLines.GetNumberOfCells(), 1)
         for markups in (widget.bases, widget.tips, widget.confidences):
             self.assertEqual(markups.GetNumberOfControlPoints(), 1)
         # The temporary placement node and its preview sphere are gone.
@@ -1466,7 +1523,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertEqual(rev.entry(widget.review, addedKey)["state"], rev.CONFIRMED)
         self.assertEqual(widget.detections[-1]["P2"], [10.0, 0.0, 6.0])
         # ...including in the views and the table, not only in the record.
-        self.assertEqual(len(widget.spheres), 4)
+        self.assertEqual(self._spheresIn(widget.allSpheres), 4)
         self.assertEqual(widget.tableWidget.rowCount, 4)
         # And the table shows what was decided rather than a fresh set of defaults.
         self.assertEqual(
@@ -1671,6 +1728,45 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.tmpMark)
         self.assertFalse(widget.ui.okButton.enabled)
         self.assertTrue(widget.ui.addButton.enabled)
+        self.delayDisplay("Passed")
+
+    def _spheresIn(self, mesh):
+        return mesh.GetNumberOfPoints() // createSphere([0, 0, 0], 1).GetOutput().GetNumberOfPoints()
+
+    def test_one_model_shows_every_candidate_or_the_selected_one(self):
+        self.delayDisplay("A case is two models, showing all candidates or the selected one")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        models = slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLModelNode")
+        self._openCase(widget, directory)
+        # However many candidates: one model for the spheres and one for the lines.
+        self.assertEqual(slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLModelNode") - models, 2)
+
+        shown = widget.sphereModel.GetPolyData()
+        self.assertEqual(self._spheresIn(shown), 3)
+        self.assertEqual(widget.lineModel.GetPolyData().GetNumberOfCells(), 3)
+
+        widget.onRowSelected(1)
+        d = widget.detections[1]
+        shown = widget.sphereModel.GetPolyData()
+        self.assertEqual(self._spheresIn(shown), 1)
+        bounds = shown.GetBounds()
+        centre = [(bounds[2 * k] + bounds[2 * k + 1]) / 2 for k in range(3)]
+        np.testing.assert_allclose(centre, d["center"], atol=1e-6)
+        self.assertAlmostEqual((bounds[1] - bounds[0]) / 2, d["radius"], places=1)
+        line = widget.lineModel.GetPolyData()
+        np.testing.assert_allclose([line.GetPoint(0), line.GetPoint(1)], [d["P1"], d["P2"]])
+
+        widget.unselectAllRows()
+        self.assertEqual(self._spheresIn(widget.sphereModel.GetPolyData()), 3)
+
+        widget.ui.SpheresVisibility.checked = False
+        self.assertFalse(widget.sphereModel.GetDisplayNode().GetVisibility())
+        widget.ui.SpheresVisibility.checked = True
+
+        widget.reset()
+        self.assertEqual(slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLModelNode"), models)
         self.delayDisplay("Passed")
 
     def _roiCount(self):
@@ -1898,15 +1994,16 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.load_detections(sample)
         widget.create_spheres()
         self.assertEqual(len(widget.detections), 3)
-        # The index-parallel invariant: one sphere and one line per detection, and one
-        # control point per detection in each of the three markups nodes.
-        self.assertEqual(len(widget.spheres), len(widget.detections))
-        self.assertEqual(len(widget.lines), len(widget.detections))
+        # One sphere and one line per detection in the two meshes, and one control point per
+        # detection in each of the three markups nodes.
+        self.assertEqual(self._spheresIn(widget.allSpheres), len(widget.detections))
+        self.assertEqual(widget.allLines.GetNumberOfCells(), len(widget.detections))
         for markups in (widget.bases, widget.tips, widget.confidences):
             self.assertEqual(markups.GetNumberOfControlPoints(), len(widget.detections))
 
         widget.reset()
-        self.assertEqual(widget.spheres, [])
+        self.assertIsNone(widget.sphereModel)
+        self.assertEqual(widget.allSpheres.GetNumberOfPoints(), 0)
         self.assertEqual(widget.bases.GetNumberOfControlPoints(), 0)
         self.delayDisplay("Passed")
 
@@ -1964,8 +2061,8 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         slicer.mrmlScene.Clear()
 
         self.assertEqual(widget.detections, [])
-        self.assertEqual(widget.spheres, [])
-        self.assertEqual(widget.lines, [])
+        self.assertIsNone(widget.sphereModel)
+        self.assertIsNone(widget.lineModel)
         self.assertEqual(widget.tableWidget.rowCount, 0)
         self.assertEqual(widget.selected_detection, -1)
         self.assertIsNone(widget.volNode)
