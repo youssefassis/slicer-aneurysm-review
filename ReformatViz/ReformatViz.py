@@ -225,6 +225,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.volNode: slicer.vtkMRMLScalarVolumeNode = None
         self.volProp: vtkmodules.vtkRenderingCore.vtkVolumeProperty = None
         self.roiNode: slicer.vtkMRMLMarkupsROINode = None
+        self.renderingRoiNode: slicer.vtkMRMLMarkupsROINode = None
         self.scalarOpacity = makeScalarOpacity()
 
         # The review of the case on screen, and where it is written. None means no case is
@@ -260,12 +261,21 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.layout_2.addWidget(self.tableWidget)
         self.ui.CollapsibleButton.setLayout(self.layout_2)
 
+    def volumeRenderingDisplayNode(self):
+        """Return the volume's rendering display node, or None if there is none to reach.
+
+        None also when the Volume Rendering module itself is gone: Slicer unloads it before
+        this widget at exit, and cleanup() still has the case to close.
+        """
+        module = getattr(slicer.modules, "volumerendering", None)
+        if not self.volNode or module is None:
+            return None
+        return module.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+
     def set_volume_color(self, color=None):
-        if not self.volNode:
-            return
         # The volume can outlive its rendering nodes, and every other call site here guards
         # for it; without this the colour picker raises instead of doing nothing.
-        displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+        displayNode = self.volumeRenderingDisplayNode()
         propertyNode = displayNode.GetVolumePropertyNode() if displayNode else None
         if not propertyNode:
             return
@@ -329,14 +339,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if (not self.ui.cropBox.checked) or (not self.volNode):
             if self.currentRoiNode():
                 self.ui.cropVisBox.setChecked(False)
-                # This branch is also the "no volume loaded" one, and the lookup needs a
-                # volume node to search from.
-                if self.volNode:
-                    displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(
-                        self.volNode
-                    )
-                    if displayNode:
-                        displayNode.SetCroppingEnabled(0)
+                # This branch is also the "no volume loaded" one, which has no display node.
+                displayNode = self.volumeRenderingDisplayNode()
+                if displayNode:
+                    displayNode.SetCroppingEnabled(0)
         else:
             self.ui.cropVisBox.setChecked(True)
             roiNode = self.ensureRoiNode()
@@ -353,7 +359,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 )
                 roiNode.SetCenter(center.tolist())
                 roiNode.SetSize(size.tolist())
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+            displayNode = self.volumeRenderingDisplayNode()
             if displayNode:
                 displayNode.SetCroppingEnabled(True)
                 displayNode.SetAndObserveROINodeID(roiNode.GetID())
@@ -430,6 +436,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
 
         self.volProp = displayNode.GetVolumePropertyNode().GetVolumeProperty()
+        self.renderingRoiNode = displayNode.GetROINode()
 
         # define the scalarOpacity function. Each of these three assignments emits
         # valueChanged, so unblocked they rebuild the ramp against a range that is
@@ -443,6 +450,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateScalarOpacity()
 
         self.ui.vol_visibility.checked = 1
+        # The colour and crop the reviewer set for the previous case are still on screen, and
+        # apply to this one too; otherwise they show in the panel but not in the render.
+        self.set_volume_color()
+        self.onCropChanged()
 
         # detections
         if detectionPath is None:
@@ -976,10 +987,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         camera.SetViewUp(upaxis.tolist())
 
     def set_volume_visibility(self):
-        if self.volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
-            if displayNode:
-                displayNode.SetVisibility(self.ui.vol_visibility.checked)
+        displayNode = self.volumeRenderingDisplayNode()
+        if displayNode:
+            displayNode.SetVisibility(self.ui.vol_visibility.checked)
 
     def set_volume_translucent(self):
         self.updateScalarOpacity()
@@ -1121,13 +1131,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # every load/Clean cycle left a pair of them behind. volProp belongs to the
             # property node: left set, the opacity sliders keep writing into a property whose
             # node has been removed.
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+            displayNode = self.volumeRenderingDisplayNode()
             if displayNode:
                 propertyNode = displayNode.GetVolumePropertyNode()
                 slicer.mrmlScene.RemoveNode(displayNode)
                 if propertyNode:
                     slicer.mrmlScene.RemoveNode(propertyNode)
             slicer.mrmlScene.RemoveNode(self.volNode)
+        # The ROI the rendering nodes came with: once crop swaps in the module's own, nothing
+        # refers to it, and every case opened left one behind.
+        if self.renderingRoiNode is not None and slicer.mrmlScene.IsNodePresent(self.renderingRoiNode):
+            slicer.mrmlScene.RemoveNode(self.renderingRoiNode)
         # Ours only. Removing every ROI in the scene took the reviewer's own along with it.
         if self.currentRoiNode():
             slicer.mrmlScene.RemoveNode(self.roiNode)
@@ -1155,6 +1169,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.volNode: slicer.vtkMRMLScalarVolumeNode = None
         self.volProp = None
         self.roiNode = None
+        self.renderingRoiNode = None
 
         # The review file itself stays on disk: it is the record of what was decided, and
         # Clean means "clear the screen", not "unsay it".
@@ -1234,6 +1249,9 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_reopening_takes_in_candidates_added_since_sign_off()
         self.test_placing_leaves_place_mode_and_one_preview()
         self.test_closing_the_scene_mid_placement_ends_it()
+        self.test_opening_and_closing_cases_leaves_no_roi_behind()
+        self.test_closing_without_volume_rendering_still_saves_the_angle()
+        self.test_a_new_case_takes_the_colour_and_crop_on_screen()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
@@ -1614,6 +1632,70 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.tmpMark)
         self.assertFalse(widget.ui.okButton.enabled)
         self.assertTrue(widget.ui.addButton.enabled)
+        self.delayDisplay("Passed")
+
+    def _roiCount(self):
+        return slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLMarkupsROINode")
+
+    def test_opening_and_closing_cases_leaves_no_roi_behind(self):
+        self.delayDisplay("Open and Clean, with and without crop, add no ROI to the scene")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        before = self._roiCount()
+
+        widget.openCase(directory)
+        widget.reset()
+        widget.ui.cropBox.checked = True
+        widget.openCase(directory)
+        widget.reset()
+        widget.ui.cropBox.checked = False
+
+        self.assertEqual(self._roiCount(), before)
+        self.delayDisplay("Passed")
+
+    def test_closing_without_volume_rendering_still_saves_the_angle(self):
+        self.delayDisplay("Closing after Volume Rendering is unloaded, as at exit, still saves")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        # The whole path, volume and its rendering nodes included: those are what reset()
+        # reaches Volume Rendering for.
+        widget.openCase(directory)
+        self.assertIsNotNone(widget.volumeRenderingDisplayNode())
+        key = widget.detections[1][det.SOURCE_KEY]
+        widget.onRowSelected(1)
+        widget.rotateAxisSlider(42)
+
+        # Slicer unloads Volume Rendering before this module's widget when it exits.
+        volumeRendering = slicer.modules.volumerendering
+        del slicer.modules.volumerendering
+        try:
+            widget.reset()
+        finally:
+            slicer.modules.volumerendering = volumeRendering
+
+        self.assertEqual(rev.entry(rev.load(self._reviewFile(directory)), key)["viewAngle"], 42)
+        self.delayDisplay("Passed")
+
+    def test_a_new_case_takes_the_colour_and_crop_on_screen(self):
+        self.delayDisplay("The colour and crop already set apply to the next case opened")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        originalColour = widget.ui.volumeColor.color
+        widget.ui.volumeColor.color = qt.QColor(255, 0, 0)
+        widget.ui.cropBox.checked = True
+
+        widget.openCase(directory)
+        displayNode = widget.volumeRenderingDisplayNode()
+        self.assertTrue(displayNode.GetCroppingEnabled())
+        colour = displayNode.GetVolumePropertyNode().GetColor()
+        self.assertEqual(tuple(colour.GetColor(colour.GetRange()[0])), (1.0, 0.0, 0.0))
+
+        widget.ui.cropBox.checked = False
+        widget.reset()
+        widget.ui.volumeColor.color = originalColour
         self.delayDisplay("Passed")
 
     def test_the_last_view_angle_survives_clean(self):
