@@ -9,4 +9,4 @@ instead of only by launching Slicer and clicking.
 Slicer object handling lives on the other side of the boundary, in ``ReformatViz.py``.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
