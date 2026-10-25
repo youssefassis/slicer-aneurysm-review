@@ -10,11 +10,14 @@
 
 name: checks
 
-# Every push, on every branch, as on GitLab. There is deliberately no `pull_request` trigger:
-# in a private repository Actions minutes are metered, and adding one would run the same
-# checks twice for any branch with a PR open. Add it if pull requests from forks ever become
-# the way work arrives.
-on: push
+# Pull requests, plus pushes to main. Running on every push instead leaves a pull request
+# from a fork with no run at all, and main now requires the `check` context, so that PR
+# could never be merged. Restricting push to main is what keeps a branch with a PR open
+# from running the same checks twice.
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
