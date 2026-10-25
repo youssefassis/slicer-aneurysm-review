@@ -37,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           # Matches the `python:3.11-slim` image GitLab uses, and the floor `requires-python`
           # declares. NOT Slicer's interpreter — see docs/development.md.
