@@ -11,8 +11,10 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Changed
 
-- **Faster with many candidates.** With 200 candidates, opening a case takes 2.0 s instead of
-  10.5 s and **Clean** 3.0 s instead of 13.4 s, and dragging a finding's points while placing
+- **Faster and lighter with many candidates.** With 200 candidates, opening a case takes 0.96 s
+  instead of 10.5 s, **Clean** 67 ms instead of 13.4 s, and the case holds 30 MB instead of
+  207 MB: all spheres are now one model, and all lines another, rather than two models per
+  candidate (the scene shows *Spheres* and *Lines* instead of *Sphere_N* and *Line_N*), and dragging a finding's points while placing
   them no longer renders every view on each mouse move. Moving between rows no longer rewrites
   the review file unless the view angle changed.
 - **The module is presented for any detector's candidates**, not only aneurysms: it is now
