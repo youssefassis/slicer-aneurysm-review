@@ -34,7 +34,7 @@ def makeScalarOpacity():
 SPHERE_RESOLUTION = 32
 
 #: The review table's columns, in order. add_detection_to_table fills a row in this order.
-TABLE_COLUMNS = ['Confidence (%)', 'Diameter (mm)', 'Aneurysm ?', 'Not because', 'Likert',
+TABLE_COLUMNS = ['Confidence (%)', 'Diameter (mm)', 'Verdict', 'Not because', 'Likert',
                  'Note']
 COL_CONFIDENCE, COL_DIAMETER, COL_VERDICT, COL_REASON, COL_LIKERT, COL_NOTE = range(6)
 
@@ -108,8 +108,8 @@ def createModel(model, name):
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = "Reformat Aneurysm"
-        self.parent.categories = ["Aneurysms"]
+        self.parent.title = "Candidate Review"
+        self.parent.categories = ["Annotation"]
         self.parent.dependencies = []
         self.parent.contributors = ["Youssef Assis and Erwan Kerrien (Loria lab.)"]
         self.parent.acknowledgementText = "This module was developed by Youssef Assis, and is maintained by Erwan Kerrien"
@@ -795,7 +795,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         references, and control points added to a node that is no longer in the scene go
         nowhere: the ostia, domes and confidence labels silently stop appearing.
         """
-        for attribute, name in (('ostia', 'Ostium'), ('domes', 'Dome'),
+        for attribute, name in (('ostia', 'Base'), ('domes', 'Tip'),
                                 ('confidences', 'Confidences')):
             node = getattr(self, attribute, None)
             if node is None or not slicer.mrmlScene.IsNodePresent(node):
@@ -987,8 +987,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         markups = self.tmpMark
         if not markups or markups.GetNumberOfControlPoints() != 2:
             # Otherwise OK looks broken: nothing happens and Add stays greyed out, with no
-            # indication that the ostium and the dome both have to be placed first.
-            slicer.util.warningDisplay("Place two points — the ostium, then the dome — "
+            # indication that the base and the tip both have to be placed first.
+            slicer.util.warningDisplay("Place two points — the base, then the tip — "
                                        "before pressing OK, or press Cancel to start over.")
             return
 

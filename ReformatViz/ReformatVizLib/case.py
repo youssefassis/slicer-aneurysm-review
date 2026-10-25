@@ -52,8 +52,8 @@ def describe_no_detections(directory):
 
     The volume is still loaded — it is worth looking at on its own — so this says what is
     missing rather than refusing, and warns that nothing is being recorded: with no detection
-    file there is no review, and an aneurysm placed by hand would be lost on the next load.
+    file there is no review, and a finding placed by hand would be lost on the next load.
     """
     return ("The volume has been loaded, but this folder has no detection file, so there are "
-            "no candidates to review. Nothing is being recorded either — an aneurysm placed "
+            "no candidates to review. Nothing is being recorded either — a finding placed "
             f"by hand will not be saved.\n\n{Path(directory).name}")

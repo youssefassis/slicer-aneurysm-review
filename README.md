@@ -1,15 +1,15 @@
-# ReformatViz — aneurysm review for 3D Slicer
+# ReformatViz — candidate review for 3D Slicer
 
 > Mirrored from the original repository at
 > [gitlab.inria.fr/yassis/slicer-reformat-aneurysm](https://gitlab.inria.fr/yassis/slicer-reformat-aneurysm).
 
-A [3D Slicer](https://www.slicer.org/) extension for reviewing candidate intracranial
-aneurysms on head angiography. Given a volume and a JSON file of candidate detections, it
-reformats the slice view so it **always contains the aneurysm axis** — the reviewer spins the
-view around that axis instead of hunting for an oblique plane by hand — and records a verdict,
-a Likert score, and any aneurysm the detector missed.
+A [3D Slicer](https://www.slicer.org/) extension for reviewing a detector's candidates — such
+as intracranial aneurysms on head angiography. Given a volume and a JSON file of candidate
+detections, it reformats the slice view so it **always contains the candidate's axis** — the
+reviewer spins the view around that axis instead of hunting for an oblique plane by hand — and
+records a verdict, a Likert score, and any finding the detector missed.
 
-The module appears in Slicer as **Reformat Aneurysm**, under the *Aneurysms* category. It is
+The module appears in Slicer as **Candidate Review**, under the *Annotation* category. It is
 developed against **Slicer 5.12.3** and drives only modules that ship with Slicer, so there
 are no extension dependencies.
 
@@ -41,8 +41,8 @@ that directory; [`data/README.md`](data/README.md) says which candidates are the
    **Angle** spins the view around it, **Thickness** sets the slab thickness for the
    maximum-intensity projection.
 3. Record a verdict — **Yes**, **No** (with a reason), **Uncertain** or **Not assessable** —
-   plus a **Likert** score and a note. **Add** places two points (ostium, then dome) to record
-   an aneurysm the detector missed.
+   plus a **Likert** score and a note. **Add** places two points (base, then tip) to record
+   a finding the detector missed.
 4. **Sign off** once every candidate has been decided. Nothing needs saving: the review is
    written to `review_<reviewer>.json` beside the case as you work, and resumed when you open
    the case again.

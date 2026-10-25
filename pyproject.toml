@@ -12,7 +12,7 @@
 [project]
 name = "reformatviz"
 version = "0.1.0"
-description = "Oblique reformatting for intracranial aneurysm review, as a 3D Slicer extension"
+description = "Review detected candidates, such as intracranial aneurysms, on an oblique view around each one's axis, as a 3D Slicer extension"
 readme = "README.md"
 license = "Apache-2.0"
 # The floor is the oldest interpreter this code is actually run on, which is CI's
