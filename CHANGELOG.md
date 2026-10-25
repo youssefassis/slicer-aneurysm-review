@@ -19,6 +19,11 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- **Adding a finding to a signed-off case** raised a traceback in the Python console and lost
+  the two placed points. **Add** is now unavailable while the case is signed off, and pressing
+  OK on points placed before sign-off is refused with the points kept.
+- A candidate the detection file gained after a case was signed off still refused every
+  verdict once the case was reopened. Reopening now enters it into the review, undecided.
 - **Opening a case wrote a note event per candidate into the review**, and moved it from
   *received* to *in review* with nothing decided; signing off then answered with one error
   dialog per row. Locking and unlocking the note cells was being taken for note edits.
