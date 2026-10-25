@@ -246,7 +246,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.resizeColumnsToContents()
         self.tableWidget.setSelectionBehavior(self.tableWidget.SelectRows)
         self.tableWidget.setSelectionMode(self.tableWidget.SingleSelection)
-        self.tableWidget.clicked.connect(self.onRowSelected)
+        # The current cell follows the arrow keys as well as the mouse, so the view does too.
+        # A click is still needed for the one move it cannot see: back onto the row that was
+        # current before "Unselect all".
+        self.tableWidget.currentCellChanged.connect(self.onCurrentCellChanged)
+        self.tableWidget.clicked.connect(self.onRowClicked)
         # Once, not per row: the note cells are ordinary items, so one table-level signal
         # covers all of them however many rows arrive.
         self.tableWidget.itemChanged.connect(self.onNoteEdited)
@@ -633,7 +637,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             lv.addItem(label)
         lv.setCurrentIndex(table.choice_index(table.LIKERT_CHOICES, entry.get("likert")))
         self.tableWidget.setCellWidget(idx, COL_LIKERT, lv)
-        lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key))
+        lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key, row=idx))
 
         # Note
         self.tableWidget.setItem(idx, COL_NOTE, qt.QTableWidgetItem(entry.get("note", "")))
@@ -648,6 +652,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         reasonCombo.setEnabled(table.reason_enabled(state))
         reason = table.REASON_CHOICES[reasonCombo.currentIndex][1] if state == rev.REJECTED else None
         if not self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), reason)):
+            self.showRecordedRow(row, key)
             return
         if state != rev.REJECTED and reasonCombo.currentIndex != 0:
             # The reason no longer applies; the record has already dropped it.
@@ -660,13 +665,34 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
         state = table.VERDICT_CHOICES[self.tableWidget.cellWidget(row, COL_VERDICT).currentIndex][1]
         reason = table.REASON_CHOICES[index][1]
-        self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), reason))
+        if not self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), reason)):
+            self.showRecordedRow(row, key)
 
-    def onLikertChanged(self, index, key):
+    def onLikertChanged(self, index, key, row):
         if self.populatingTable:
             return
         score = table.LIKERT_CHOICES[index][1]
-        self.applyToReview(functools.partial(rev.set_likert, self.review, key, score, now()))
+        if not self.applyToReview(functools.partial(rev.set_likert, self.review, key, score, now())):
+            self.showRecordedRow(row, key)
+
+    def showRecordedRow(self, row, key):
+        """Put a row's combos back to what the review records, after a refused change.
+
+        Otherwise the combo keeps showing the value the reviewer picked, which the review
+        never took, and the table and the file disagree until the case is reopened.
+        """
+        entry = (self.review or {}).get("detections", {}).get(key) or {}
+        state = entry.get("state", rev.UNREVIEWED)
+        editable = not self.review or self.review["review"]["state"] != rev.SIGNED_OFF
+        self.populatingTable = True
+        self.tableWidget.cellWidget(row, COL_VERDICT).setCurrentIndex(table.choice_index(table.VERDICT_CHOICES, state))
+        reason = self.tableWidget.cellWidget(row, COL_REASON)
+        reason.setCurrentIndex(table.choice_index(table.REASON_CHOICES, entry.get("reason")))
+        reason.setEnabled(table.reason_enabled(state, editable))
+        self.tableWidget.cellWidget(row, COL_LIKERT).setCurrentIndex(
+            table.choice_index(table.LIKERT_CHOICES, entry.get("likert"))
+        )
+        self.populatingTable = False
 
     def onNoteEdited(self, item):
         if self.populatingTable or item.column() != COL_NOTE:
@@ -705,6 +731,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def setReviewEditable(self, editable):
         """Lock the verdicts of a signed-off case, or unlock them after a reopen."""
+        # Changing an item's flags emits itemChanged, which onNoteEdited would record as a
+        # note: an event per row on every open, and a refused one per row on sign-off.
+        self.populatingTable = True
         for row in range(self.tableWidget.rowCount):
             for column in (COL_VERDICT, COL_LIKERT):
                 widget = self.tableWidget.cellWidget(row, column)
@@ -719,10 +748,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     note.setFlags(note.flags() | qt.Qt.ItemIsEditable)
                 else:
                     note.setFlags(note.flags() & ~qt.Qt.ItemIsEditable)
+        self.populatingTable = False
 
     def _rowState(self, row):
         verdict = self.tableWidget.cellWidget(row, COL_VERDICT)
         return table.VERDICT_CHOICES[verdict.currentIndex][1] if verdict else None
+
+    def onCurrentCellChanged(self, row, column, previousRow, previousColumn):
+        if self.populatingTable or row == self.selected_detection:
+            return
+        self.onRowSelected(row)
+
+    def onRowClicked(self, index):
+        # The click that changed the current cell has already been handled by
+        # onCurrentCellChanged; doing it again would reformat and save twice.
+        if index.row() != self.selected_detection:
+            self.onRowSelected(index.row())
 
     def onRowSelected(self, item):
         self.selected_detection = item.row() if not isinstance(item, int) else item
@@ -1147,6 +1188,9 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_case_is_resumed_exactly_as_it_was_left()
         self.test_a_case_whose_review_cannot_be_read_is_not_opened()
         self.test_a_signed_off_case_reopens_locked()
+        self.test_locking_the_table_records_no_notes()
+        self.test_the_arrow_keys_move_the_view_with_the_highlight()
+        self.test_a_refused_verdict_is_not_left_on_screen()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
@@ -1373,6 +1417,65 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             self.assertFalse(widget.tableWidget.cellWidget(row, COL_LIKERT).enabled)
             self.assertFalse(widget.tableWidget.cellWidget(row, COL_REASON).enabled)
             self.assertFalse(widget.tableWidget.item(row, COL_NOTE).flags() & qt.Qt.ItemIsEditable)
+
+        widget.reset()
+        self.delayDisplay("Passed")
+
+    def test_locking_the_table_records_no_notes(self):
+        self.delayDisplay("Opening and signing off a case records nothing the reviewer did not do")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        # Just opened: nothing decided, nothing noted, still "received".
+        self.assertEqual(widget.review["events"], [])
+        self.assertEqual(widget.review["review"]["state"], rev.RECEIVED)
+
+        for row, verdict in enumerate(("Yes", "No", "Not assessable")):
+            self._setVerdict(widget, row, verdict)
+        widget.onSignOff()
+
+        onDisk = rev.load(self._reviewFile(directory))
+        self.assertEqual(onDisk["review"]["state"], rev.SIGNED_OFF)
+        self.assertEqual([e["what"] for e in onDisk["events"] if e["what"] == "note"], [])
+
+        widget.reset()
+        self.delayDisplay("Passed")
+
+    def test_the_arrow_keys_move_the_view_with_the_highlight(self):
+        self.delayDisplay("Moving the current row from the keyboard reformats onto it")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        widget.tableWidget.setCurrentCell(2, COL_CONFIDENCE)
+        self.assertEqual(widget.selected_detection, 2)
+        d = widget.detections[2]
+        np.testing.assert_allclose(widget.candidateOrigin, (np.array(d["P1"]) + np.array(d["P2"])) / 2)
+
+        # Back onto the same row after "Unselect all" takes a click, not a cell change.
+        widget.unselectAllRows()
+        widget.onRowClicked(widget.tableWidget.model().index(2, COL_CONFIDENCE))
+        self.assertEqual(widget.selected_detection, 2)
+
+        widget.reset()
+        self.delayDisplay("Passed")
+
+    def test_a_refused_verdict_is_not_left_on_screen(self):
+        self.delayDisplay("A verdict the review refuses is taken back off the table")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        # A candidate the review has no entry for refuses every verdict.
+        del widget.review["detections"][widget.detections[0][det.SOURCE_KEY]]
+        self._setVerdict(widget, 0, "Yes")
+        self.assertEqual(widget.tableWidget.cellWidget(0, COL_VERDICT).currentIndex, 0)
+        widget.tableWidget.cellWidget(0, COL_LIKERT).setCurrentIndex(3)
+        self.assertEqual(widget.tableWidget.cellWidget(0, COL_LIKERT).currentIndex, 0)
 
         widget.reset()
         self.delayDisplay("Passed")
