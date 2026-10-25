@@ -19,6 +19,14 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- **Placing a finding never left place mode**: the next click in a view after the tip — or
+  after OK or Cancel — dropped another point, into the finding or into whatever node was
+  active. The second point now hands the mouse back to the views.
+- Each point placed beyond the second added another preview sphere, and Cancel or OK left all
+  but the last in the scene.
+- Closing the scene while a finding was being placed left OK enabled on a node that no longer
+  existed; pressing it built a detection in the empty scene. The placement now ends with the
+  scene.
 - **Adding a finding to a signed-off case** raised a traceback in the Python console and lost
   the two placed points. **Add** is now unavailable while the case is signed off, and pressing
   OK on points placed before sign-off is refused with the points kept.

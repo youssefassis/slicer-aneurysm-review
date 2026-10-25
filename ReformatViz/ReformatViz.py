@@ -985,11 +985,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateScalarOpacity()
 
     def prepareAnnotationNode(self, name="P"):
-        if self.tmpMark:
-            slicer.mrmlScene.RemoveNode(self.tmpMark)
-        if self.tmpSphere:
-            slicer.mrmlScene.RemoveNode(self.tmpSphere)
-            self.tmpSphere: slicer.vtkMRMLModelNode = None
+        self.removeAnnotationNodes()
 
         node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", name)
         node.CreateDefaultDisplayNodes()
@@ -1011,9 +1007,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def removeAnnotationNodes(self, caller=None, event=None):
         if self.tmpMark:
-            slicer.mrmlScene.RemoveNode(self.tmpMark)
-        if self.tmpSphere:
-            slicer.mrmlScene.RemoveNode(self.tmpSphere)
+            self.stopPlacing()
+        # Present-checked: after a scene close both are already gone.
+        for node in (self.tmpMark, self.tmpSphere):
+            if node is not None and slicer.mrmlScene.IsNodePresent(node):
+                slicer.mrmlScene.RemoveNode(node)
 
         self.tmpMark: slicer.vtkMRMLMarkupsFiducialNode = None
         self.tmpSphere: slicer.vtkMRMLModelNode = None
@@ -1058,14 +1056,29 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateObjectsDisplay()
         self.updateAnnotationButtons()
 
+    def stopPlacing(self):
+        """Leave place mode, so the next click in a view moves the view again.
+
+        markups.logic().StartPlaceMode(0) only makes placement non-persistent; it leaves the
+        mode on, and the next click lands a point in whatever node is active by then.
+        """
+        interaction = slicer.app.applicationLogic().GetInteractionNode()
+        if interaction and interaction.GetCurrentInteractionMode() == interaction.Place:
+            interaction.SwitchToViewTransformMode()
+
     def drawAnnotationSpheres(self, caller=None, event=None):
         markups: slicer.vtkMRMLMarkupsFiducialNode = caller
         nb_points = markups.GetNumberOfControlPoints()
         if nb_points < 2:
             return
 
-        slicer.modules.markups.logic().StartPlaceMode(0)
+        self.stopPlacing()
         markups.GetDisplayNode().SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeUnconstrained)
+        if self.tmpSphere is not None:
+            # A point beyond the second: the preview already exists, and a second model here
+            # would be left behind by Cancel and OK alike.
+            self.MoveSpheres(markups)
+            return
         p1, p2 = np.empty(3), np.empty(3)
         markups.GetNthControlPointPositionWorld(0, p1)
         markups.GetNthControlPointPositionWorld(1, p2)
@@ -1183,6 +1196,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # is gone. The three shared markups nodes are recreated because the widget keeps them
         # for the whole session rather than per patient.
         self.ensureMarkupsNodes()
+        # A placement under way when the scene closed: its node went with the scene, and OK
+        # would otherwise still turn it into a detection in an empty scene.
+        self.removeAnnotationNodes()
         self.forgetSceneState()
 
 
@@ -1216,6 +1232,8 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_refused_verdict_is_not_left_on_screen()
         self.test_a_signed_off_case_takes_no_new_finding()
         self.test_reopening_takes_in_candidates_added_since_sign_off()
+        self.test_placing_leaves_place_mode_and_one_preview()
+        self.test_closing_the_scene_mid_placement_ends_it()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
@@ -1558,6 +1576,44 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertEqual(rev.entry(rev.load(self._reviewFile(directory)), "late_one")["state"], rev.REJECTED)
 
         widget.reset()
+        self.delayDisplay("Passed")
+
+    def _previewCount(self):
+        return len(slicer.util.getNodes("Tmp Sphere*", useLists=True))
+
+    def test_placing_leaves_place_mode_and_one_preview(self):
+        self.delayDisplay("The second point ends placement, and a stray point adds no preview")
+        widget = self._widget()
+        widget.reset()
+        widget.volNode = self._addTestVolume()
+        interaction = slicer.app.applicationLogic().GetInteractionNode()
+
+        widget.addAnnotationNode()
+        self.assertEqual(interaction.GetCurrentInteractionMode(), interaction.Place)
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 6.0])
+        self.assertNotEqual(interaction.GetCurrentInteractionMode(), interaction.Place)
+        self.assertEqual(self._previewCount(), 1)
+
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 9.0])
+        self.assertEqual(self._previewCount(), 1)
+        widget.removeAnnotationNodes()  # Cancel
+        self.assertEqual(self._previewCount(), 0)
+
+        widget.reset()
+        self.delayDisplay("Passed")
+
+    def test_closing_the_scene_mid_placement_ends_it(self):
+        self.delayDisplay("A placement under way does not survive the scene it was in")
+        widget = self._widget()
+        widget.reset()
+        widget.addAnnotationNode()
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
+
+        slicer.mrmlScene.Clear(0)
+        self.assertIsNone(widget.tmpMark)
+        self.assertFalse(widget.ui.okButton.enabled)
+        self.assertTrue(widget.ui.addButton.enabled)
         self.delayDisplay("Passed")
 
     def test_the_last_view_angle_survives_clean(self):
