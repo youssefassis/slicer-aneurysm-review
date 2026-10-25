@@ -32,8 +32,7 @@ def _clamp(value, low, high):
     return min(max(value, low), high)
 
 
-def scalar_opacity_points(min_value, max_value, threshold, opacity, translucent,
-                          margin=OPACITY_RAMP_MARGIN):
+def scalar_opacity_points(min_value, max_value, threshold, opacity, translucent, margin=OPACITY_RAMP_MARGIN):
     """Return the opacity ramp control points for the volume rendering.
 
     The ramp is transparent below ``threshold - margin``, rises to ``opacity`` at

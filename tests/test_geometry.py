@@ -22,10 +22,17 @@ class TestRotate2Z:
         assert mapped[2] == pytest.approx(np.linalg.norm(v))
         assert mapped[:2] == pytest.approx([0, 0])
 
-    @pytest.mark.parametrize("v", [
-        [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
-        [1.0, 1.0, 1.0], [-3.0, 0.5, 2.0], [0.0, 0.0, -1.0],
-    ])
+    @pytest.mark.parametrize(
+        "v",
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [-3.0, 0.5, 2.0],
+            [0.0, 0.0, -1.0],
+        ],
+    )
     def test_is_a_rotation_matrix(self, v):
         R = geo.rotate2Z(v)
         assert R @ R.T == pytest.approx(np.eye(3))
@@ -38,9 +45,15 @@ class TestRotate2Z:
     def test_scale_does_not_matter(self):
         assert geo.rotate2Z([1.0, 2.0, 3.0]) == pytest.approx(geo.rotate2Z([10.0, 20.0, 30.0]))
 
-    @pytest.mark.parametrize("v", [
-        [1e-7, 0.0, 1.0], [0.0, 1e-7, 1.0], [1e-7, 1e-7, 1.0], [1e-7, 0.0, -1.0],
-    ])
+    @pytest.mark.parametrize(
+        "v",
+        [
+            [1e-7, 0.0, 1.0],
+            [0.0, 1e-7, 1.0],
+            [1e-7, 1e-7, 1.0],
+            [1e-7, 0.0, -1.0],
+        ],
+    )
     def test_stays_orthonormal_for_a_nearly_vertical_axis(self, v):
         # sqrt(1 - vz**2) keeps almost no precision when |vz| is close to 1, which left the
         # first row over 1% too long — so the "unit" slice normal handed to Slicer was not one.
@@ -104,12 +117,15 @@ class TestSliceContainsTheCandidateAxis:
     """The invariant the whole reformatting exists to hold."""
 
     @pytest.mark.parametrize("angle", ANGLES)
-    @pytest.mark.parametrize("P1, P2", [
-        ([0, 0, 0], [0, 0, 5]),
-        ([0, 0, 0], [1, 0, 0]),
-        ([-12.5, 18.0, 42.25], [-9.5, 22.0, 42.25]),
-        ([3, -4, 12], [-7, 2, 0.5]),
-    ])
+    @pytest.mark.parametrize(
+        "P1, P2",
+        [
+            ([0, 0, 0], [0, 0, 5]),
+            ([0, 0, 0], [1, 0, 0]),
+            ([-12.5, 18.0, 42.25], [-9.5, 22.0, 42.25]),
+            ([3, -4, 12], [-7, 2, 0.5]),
+        ],
+    )
     def test_normal_stays_perpendicular_to_the_axis_at_every_angle(self, P1, P2, angle):
         axis, _, Rz = geo.candidate_frame(P1, P2)
         normal = geo.slice_normal(Rz, angle)
@@ -173,10 +189,7 @@ def bounds_from_corners(ijk_to_ras, dimensions):
     """Brute-force ``(center, size)`` from the eight corners of the voxel box."""
     m = np.asarray(ijk_to_ras, dtype=np.float64)
     x, y, z = dimensions
-    corners = np.array([[i, j, k, 1.0]
-                        for i in (0.0, float(x))
-                        for j in (0.0, float(y))
-                        for k in (0.0, float(z))])
+    corners = np.array([[i, j, k, 1.0] for i in (0.0, float(x)) for j in (0.0, float(y)) for k in (0.0, float(z))])
     ras = (m @ corners.T).T[:, :3]
     low, high = ras.min(axis=0), ras.max(axis=0)
     return (low + high) / 2, high - low

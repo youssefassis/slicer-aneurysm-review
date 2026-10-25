@@ -28,37 +28,41 @@ def makeScalarOpacity():
         scalarOpacity.AddPoint(float(x), 0.0)
     return scalarOpacity
 
+
 # Enough to look round at the few millimetres these spheres span on screen. The mesh is
 # rebuilt on every mouse move while an annotation point is dragged, and one sphere is resident
 # per detection, so 100x100 (~10k points each) cost far more than it showed.
 SPHERE_RESOLUTION = 32
 
 #: The review table's columns, in order. add_detection_to_table fills a row in this order.
-TABLE_COLUMNS = ['Confidence (%)', 'Diameter (mm)', 'Verdict', 'Not because', 'Likert',
-                 'Note']
+TABLE_COLUMNS = ["Confidence (%)", "Diameter (mm)", "Verdict", "Not because", "Likert", "Note"]
 COL_CONFIDENCE, COL_DIAMETER, COL_VERDICT, COL_REASON, COL_LIKERT, COL_NOTE = range(6)
 
 #: The verdict combo: what the reviewer picks, and the state it records. A verdict combo
 #: rather than a checkbox because a checkbox cannot say "not looked at yet", which is the one
 #: thing a triage review must be able to say.
-VERDICT_CHOICES = (('\u2014', rev.UNREVIEWED),
-                   ('Yes', rev.CONFIRMED),
-                   ('No', rev.REJECTED),
-                   ('Uncertain', rev.UNCERTAIN),
-                   ('Not assessable', rev.NOT_ASSESSABLE))
+VERDICT_CHOICES = (
+    ("\u2014", rev.UNREVIEWED),
+    ("Yes", rev.CONFIRMED),
+    ("No", rev.REJECTED),
+    ("Uncertain", rev.UNCERTAIN),
+    ("Not assessable", rev.NOT_ASSESSABLE),
+)
 
 #: The reason combo, enabled only for a rejected candidate.
-REASON_CHOICES = (('\u2014', None),
-                  ('Infundibulum', 'infundibulum'),
-                  ('Vessel loop', 'vessel_loop'),
-                  ('Artifact', 'artifact'),
-                  ('Other pathology', 'other_pathology'),
-                  ('Duplicate', 'duplicate'),
-                  ('Other', 'other'))
+REASON_CHOICES = (
+    ("\u2014", None),
+    ("Infundibulum", "infundibulum"),
+    ("Vessel loop", "vessel_loop"),
+    ("Artifact", "artifact"),
+    ("Other pathology", "other_pathology"),
+    ("Duplicate", "duplicate"),
+    ("Other", "other"),
+)
 
 #: Set this to attribute reviews to someone other than the logged-in user, from the Python
 #: console: slicer.app.userSettings().setValue('ReformatViz/Reviewer', 'ykerrien')
-REVIEWER_SETTING = 'ReformatViz/Reviewer'
+REVIEWER_SETTING = "ReformatViz/Reviewer"
 
 
 def reviewerName():
@@ -89,6 +93,7 @@ def _choiceIndex(choices, value):
             return index
     return 0
 
+
 def createSphere(center, radius):
     sphere = vtk.vtkSphereSource()
     sphere.SetCenter(center)
@@ -98,12 +103,14 @@ def createSphere(center, radius):
     sphere.Update()
     return sphere
 
+
 def createModel(model, name):
     node = slicer.modules.models.logic().AddModel(model.GetOutput())
     node.SetName(name)
     node.GetDisplayNode().SetVisibility2D(True)
     node.GetDisplayNode().SetSliceIntersectionThickness(2)
     return node
+
 
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
@@ -112,7 +119,10 @@ class ReformatViz(ScriptedLoadableModule):
         self.parent.categories = ["Annotation"]
         self.parent.dependencies = []
         self.parent.contributors = ["Youssef Assis and Erwan Kerrien (Loria lab.)"]
-        self.parent.acknowledgementText = "This module was developed by Youssef Assis, and is maintained by Erwan Kerrien"
+        self.parent.acknowledgementText = (
+            "This module was developed by Youssef Assis, and is maintained by Erwan Kerrien"
+        )
+
 
 class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def __init__(self, parent=None):
@@ -130,7 +140,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Load widget from .ui file (created by Qt Designer).
         # Additional widgets can be instantiated manually and added to self.layout.
-        uiWidget = slicer.util.loadUI(self.resourcePath('UI/ReformatViz.ui'))
+        uiWidget = slicer.util.loadUI(self.resourcePath("UI/ReformatViz.ui"))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         uiWidget.setMRMLScene(slicer.mrmlScene)
@@ -185,7 +195,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return None
 
     def connectVolumeControls(self):
-        self.ui.load_volume_button.clicked.connect(self.load_files) # load volume
+        self.ui.load_volume_button.clicked.connect(self.load_files)  # load volume
         self.ui.vol_visibility.stateChanged.connect(self.set_volume_visibility)
         self.ui.vol_translucent.stateChanged.connect(self.set_volume_translucent)
         self.ui.cropBox.stateChanged.connect(self.onCropChanged)
@@ -209,17 +219,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.MarkupsColorPicker.colorChanged.connect(self.set_markups_color)
         self.ui.MarkupsVisibility.stateChanged.connect(self.set_markups_visibility)
 
-        self.ui.addButton.connect('clicked(bool)', self.addAnnotationNode)
-        self.ui.cancelButton.connect('clicked(bool)', self.removeAnnotationNodes)
-        self.ui.okButton.connect('clicked(bool)', self.validateAnnotation)
+        self.ui.addButton.connect("clicked(bool)", self.addAnnotationNode)
+        self.ui.cancelButton.connect("clicked(bool)", self.removeAnnotationNodes)
+        self.ui.okButton.connect("clicked(bool)", self.validateAnnotation)
 
     def connectReviewControls(self):
         self.ui.signOffButton.clicked.connect(self.onSignOff)
         # The lambda swallows clicked's bool argument, which would otherwise bind to
         # reset_view: the button always emits False, so connecting the slot directly meant
         # unselecting never reset the view.
-        self.ui.unselectButton.connect('clicked(bool)', lambda *_: self.unselectAllRows())
-        self.ui.cleanButton.connect('clicked(bool)', self.reset)
+        self.ui.unselectButton.connect("clicked(bool)", lambda *_: self.unselectAllRows())
+        self.ui.cleanButton.connect("clicked(bool)", self.reset)
 
     def connectViewControls(self):
         self.ui.axialVisibility.stateChanged.connect(self.set_axial_slice_visibility)
@@ -237,14 +247,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.selected_detection = -1
         self.detections = []
 
-        self.tmpMark : slicer.vtkMRMLMarkupsFiducialNode = None
-        self.tmpSphereSource : slicer.vtkSphereSource = None
-        self.tmpSphere : slicer.vtkMRMLModelNode = None
+        self.tmpMark: slicer.vtkMRMLMarkupsFiducialNode = None
+        self.tmpSphereSource: slicer.vtkSphereSource = None
+        self.tmpSphere: slicer.vtkMRMLModelNode = None
 
-        self.volNode : slicer.vtkMRMLScalarVolumeNode = None
-        self.volProp : vtkmodules.vtkRenderingCore.vtkVolumeProperty=None
-        self.roiNode : slicer.vtkMRMLMarkupsROINode = None
-        self.scalarOpacity=makeScalarOpacity()
+        self.volNode: slicer.vtkMRMLScalarVolumeNode = None
+        self.volProp: vtkmodules.vtkRenderingCore.vtkVolumeProperty = None
+        self.roiNode: slicer.vtkMRMLMarkupsROINode = None
+        self.scalarOpacity = makeScalarOpacity()
 
         # The review of the case on screen, and where it is written. None means no case is
         # open, and nothing is recorded.
@@ -309,7 +319,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onVolumeThresholdChanged(self, value):
         self.updateScalarOpacity()
 
-    def onVolumeOpacityChanged(self,value):
+    def onVolumeOpacityChanged(self, value):
         self.updateScalarOpacity()
 
     def currentRoiNode(self):
@@ -329,7 +339,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         roiNode = self.currentRoiNode()
         if roiNode is None:
             roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode")
-            roiNode.SetName('')  # undisplay ROI name
+            roiNode.SetName("")  # undisplay ROI name
             roiNode.GetDisplayNode().SetOpacity(0.05)
             roiNode.GetDisplayNode().SetVisibility(True)
             self.roiNode = roiNode
@@ -347,22 +357,25 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 # This branch is also the "no volume loaded" one, and the lookup needs a
                 # volume node to search from.
                 if self.volNode:
-                    displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+                    displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(
+                        self.volNode
+                    )
                     if displayNode:
                         displayNode.SetCroppingEnabled(0)
         else:
             self.ui.cropVisBox.setChecked(True)
             roiNode = self.ensureRoiNode()
             if self.selected_detection >= 0:
-                position_RAS = self.detections[self.selected_detection]['center']
-                radius = [self.detections[self.selected_detection]['radius']*4 ] * 3
+                position_RAS = self.detections[self.selected_detection]["center"]
+                radius = [self.detections[self.selected_detection]["radius"] * 4] * 3
                 roiNode.SetCenter(position_RAS)
                 roiNode.SetRadiusXYZ(radius)
             else:
-                m=vtkmodules.vtkCommonMath.vtkMatrix4x4()
+                m = vtkmodules.vtkCommonMath.vtkMatrix4x4()
                 self.volNode.GetIJKToRASMatrix(m)
-                center,size=geometry.volume_bounds(slicer.util.arrayFromVTKMatrix(m),
-                                                   self.volNode.GetImageData().GetDimensions())
+                center, size = geometry.volume_bounds(
+                    slicer.util.arrayFromVTKMatrix(m), self.volNode.GetImageData().GetDimensions()
+                )
                 roiNode.SetCenter(center.tolist())
                 roiNode.SetSize(size.tolist())
             displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
@@ -371,45 +384,42 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 displayNode.SetAndObserveROINodeID(roiNode.GetID())
                 displayNode.GetROINode().SetDisplayVisibility(True)
 
-
     def rotateAxisSlider(self, value):
-        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed")
         if node is not None:
             if self.detections and self.selected_detection >= 0:
                 d = self.detections[self.selected_detection]
-                d['viewAngle']=value
+                d["viewAngle"] = value
                 if self.reviewEntry(d):
                     rev.set_view_angle(self.review, d[det.SOURCE_KEY], value)
             self.reformatLogic.SetSliceNormal(node, geometry.slice_normal(self.candidateRz, value))
             # Read back the slice axes Slicer settled on, then roll in-plane so the
             # candidate stays upright instead of tumbling as the reviewer rotates.
-            m=node.GetSliceToRAS()
-            sliceX=np.array(m.MultiplyDoublePoint([1,0,0,0]))[:3]
-            sliceY=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
-            self.reformatLogic.RotateSlice(node,2,geometry.in_plane_roll_deg(sliceX,sliceY,self.candidateAxis))
+            m = node.GetSliceToRAS()
+            sliceX = np.array(m.MultiplyDoublePoint([1, 0, 0, 0]))[:3]
+            sliceY = np.array(m.MultiplyDoublePoint([0, 1, 0, 0]))[:3]
+            self.reformatLogic.RotateSlice(node, 2, geometry.in_plane_roll_deg(sliceX, sliceY, self.candidateAxis))
             self.reformatLogic.SetSliceOrigin(node, self.candidateOrigin)
 
-        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen')
+        node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen")
         if node is not None:
             self.reformatLogic.SetSliceOrigin(node, self.candidateOrigin)
-        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow')
+        node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow")
         if node is not None:
             self.reformatLogic.SetSliceOrigin(node, self.candidateOrigin)
-
 
     def set_axial_slice_visibility(self):
         layoutManager = slicer.app.layoutManager()
         controller = layoutManager.sliceWidget("Red").sliceController()
         controller.setSliceVisible(self.ui.axialVisibility.checked)
 
-    def thicknessSlider(self,value):
-        node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+    def thicknessSlider(self, value):
+        node = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed")
         if node is None:
             return
         node.SetSlabReconstructionEnabled(1)
-        node.SetSlabReconstructionType(1) # Max Intensity Projection
+        node.SetSlabReconstructionType(1)  # Max Intensity Projection
         node.SetSlabReconstructionThickness(value)
-
 
     def load_files(self):
         # save before loading
@@ -444,7 +454,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
         volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
 
-        self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
+        self.volProp = displayNode.GetVolumePropertyNode().GetVolumeProperty()
 
         # define the scalarOpacity function. Each of these three assignments emits
         # valueChanged, so unblocked they rebuild the ramp against a range that is
@@ -453,7 +463,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         wasBlocked = self.ui.volumeThreshold.blockSignals(True)
         self.ui.volumeThreshold.maximum = max_val
         self.ui.volumeThreshold.minimum = min_val
-        self.ui.volumeThreshold.value = (max_val+min_val)/3
+        self.ui.volumeThreshold.value = (max_val + min_val) / 3
         self.ui.volumeThreshold.blockSignals(wasBlocked)
         self.updateScalarOpacity()
 
@@ -506,17 +516,19 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not rev.matches_source(self.review, digest):
                 slicer.util.warningDisplay(rev.describe_source_mismatch(self.review))
             self.restoreAddedDetections()
-            if self.review['review']['state'] != rev.SIGNED_OFF:
+            if self.review["review"]["state"] != rev.SIGNED_OFF:
                 rev.add_candidates(self.review, [d[det.SOURCE_KEY] for d in self.detections])
             self.restoreViewAngles()
             return True
 
         self.review = rev.new(
-            study={'directory': directory.name},
-            source={'detectionFile': detectionPath.name, 'sha256': digest,
-                    'volumeFile': volumePath.name},
-            reviewer=reviewerName(), tool=toolDescription(), at=now(),
-            keys=[d[det.SOURCE_KEY] for d in self.detections])
+            study={"directory": directory.name},
+            source={"detectionFile": detectionPath.name, "sha256": digest, "volumeFile": volumePath.name},
+            reviewer=reviewerName(),
+            tool=toolDescription(),
+            at=now(),
+            keys=[d[det.SOURCE_KEY] for d in self.detections],
+        )
         self.saveReview()
         return True
 
@@ -529,7 +541,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         for key in rev.added_keys(self.review):
             entry = rev.entry(self.review, key)
-            detection = det.from_points(entry['P1'], entry['P2'])
+            detection = det.from_points(entry["P1"], entry["P2"])
             detection[det.SOURCE_KEY] = key
             self.detections.append(detection)
 
@@ -538,13 +550,13 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for d in self.detections:
             entry = self.reviewEntry(d)
             if entry:
-                d['viewAngle'] = entry['viewAngle']
+                d["viewAngle"] = entry["viewAngle"]
 
     def reviewEntry(self, detection):
         """Return the review entry for ``detection``, or None when no case is open."""
         if not self.review:
             return None
-        return self.review['detections'].get(detection.get(det.SOURCE_KEY))
+        return self.review["detections"].get(detection.get(det.SOURCE_KEY))
 
     def saveReview(self):
         """Write the review out. Called after every change the reviewer makes.
@@ -581,12 +593,11 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Show how much of the case is decided, next to the table it refers to."""
         if not self.review:
             self.ui.CollapsibleButton.text = self.reviewSectionTitle
-            self.ui.signOffButton.text = 'Sign off'
+            self.ui.signOffButton.text = "Sign off"
             return
-        self.ui.CollapsibleButton.text = (f'{self.reviewSectionTitle} '
-                                          f'\u2014 {rev.describe_progress(self.review)}')
-        signedOff = self.review['review']['state'] == rev.SIGNED_OFF
-        self.ui.signOffButton.text = 'Reopen' if signedOff else 'Sign off'
+        self.ui.CollapsibleButton.text = f"{self.reviewSectionTitle} \u2014 {rev.describe_progress(self.review)}"
+        signedOff = self.review["review"]["state"] == rev.SIGNED_OFF
+        self.ui.signOffButton.text = "Reopen" if signedOff else "Sign off"
 
     def fillReviewTable(self):
         """Show the open review: one row per detection, locked if the case is finished.
@@ -598,15 +609,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for d in self.detections:
             self.add_detection_to_table(d)
         # Once the rows exist, not once per row.
-        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,
-                                                              COL_CONFIDENCE))
+        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection, COL_CONFIDENCE))
         self.updateProgress()
         if self.review:
-            self.setReviewEditable(self.review['review']['state'] != rev.SIGNED_OFF)
+            self.setReviewEditable(self.review["review"]["state"] != rev.SIGNED_OFF)
 
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
-    def add_detection_to_table(self,d):
-        idx=self.tableWidget.rowCount
+    def add_detection_to_table(self, d):
+        idx = self.tableWidget.rowCount
         # No key and no entry when no case is open; the handlers then have nothing to record
         # to, which applyToReview already refuses.
         key = d.get(det.SOURCE_KEY)
@@ -622,43 +632,40 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Confidence score
         itm = qt.QTableWidgetItem(str(det.confidence_percent(d)))
         itm.setTextAlignment(4)
-        self.tableWidget.setItem(idx, COL_CONFIDENCE,  itm)
+        self.tableWidget.setItem(idx, COL_CONFIDENCE, itm)
 
         # Diameter (mm)
         itm = qt.QTableWidgetItem(str(det.diameter(d)))
         itm.setTextAlignment(4)
-        self.tableWidget.setItem(idx, COL_DIAMETER,  itm)
+        self.tableWidget.setItem(idx, COL_DIAMETER, itm)
 
         # Verdict
         verdict = qt.QComboBox()
         for label, _ in VERDICT_CHOICES:
             verdict.addItem(label)
-        verdict.setCurrentIndex(_choiceIndex(VERDICT_CHOICES,
-                                            entry.get('state', rev.UNREVIEWED)))
+        verdict.setCurrentIndex(_choiceIndex(VERDICT_CHOICES, entry.get("state", rev.UNREVIEWED)))
         self.tableWidget.setCellWidget(idx, COL_VERDICT, verdict)
-        verdict.currentIndexChanged.connect(
-            functools.partial(self.onVerdictChanged, key=key, row=idx))
+        verdict.currentIndexChanged.connect(functools.partial(self.onVerdictChanged, key=key, row=idx))
 
         # Why the candidate was rejected
         reason = qt.QComboBox()
         for label, _ in REASON_CHOICES:
             reason.addItem(label)
-        reason.setCurrentIndex(_choiceIndex(REASON_CHOICES, entry.get('reason')))
-        reason.setEnabled(entry.get('state') == rev.REJECTED)
+        reason.setCurrentIndex(_choiceIndex(REASON_CHOICES, entry.get("reason")))
+        reason.setEnabled(entry.get("state") == rev.REJECTED)
         self.tableWidget.setCellWidget(idx, COL_REASON, reason)
-        reason.currentIndexChanged.connect(
-            functools.partial(self.onReasonChanged, key=key, row=idx))
+        reason.currentIndexChanged.connect(functools.partial(self.onReasonChanged, key=key, row=idx))
 
         # Likert score
         lv = qt.QComboBox()
         for i in range(6):
-            lv.addItem('-' if i == det.LIKERT_UNSCORED else str(i))
-        lv.setCurrentIndex(entry.get('likert') or det.LIKERT_UNSCORED)
+            lv.addItem("-" if i == det.LIKERT_UNSCORED else str(i))
+        lv.setCurrentIndex(entry.get("likert") or det.LIKERT_UNSCORED)
         self.tableWidget.setCellWidget(idx, COL_LIKERT, lv)
         lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key))
 
         # Note
-        self.tableWidget.setItem(idx, COL_NOTE, qt.QTableWidgetItem(entry.get('note', '')))
+        self.tableWidget.setItem(idx, COL_NOTE, qt.QTableWidgetItem(entry.get("note", "")))
 
         self.populatingTable = False
 
@@ -669,8 +676,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         reasonCombo = self.tableWidget.cellWidget(row, COL_REASON)
         reasonCombo.setEnabled(state == rev.REJECTED)
         reason = REASON_CHOICES[reasonCombo.currentIndex][1] if state == rev.REJECTED else None
-        if not self.applyToReview(
-                functools.partial(rev.set_state, self.review, key, state, now(), reason)):
+        if not self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), reason)):
             return
         if state != rev.REJECTED and reasonCombo.currentIndex != 0:
             # The reason no longer applies; the record has already dropped it.
@@ -682,8 +688,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.populatingTable:
             return
         state = VERDICT_CHOICES[self.tableWidget.cellWidget(row, COL_VERDICT).currentIndex][1]
-        self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(),
-                                             REASON_CHOICES[index][1]))
+        self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), REASON_CHOICES[index][1]))
 
     def onLikertChanged(self, index, key):
         if self.populatingTable:
@@ -700,8 +705,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         key = self.detections[item.row()].get(det.SOURCE_KEY)
         if key is None:
             return
-        self.applyToReview(functools.partial(rev.set_note, self.review, key, item.text(),
-                                             now()))
+        self.applyToReview(functools.partial(rev.set_note, self.review, key, item.text(), now()))
 
     def onSignOff(self):
         """Finish the case, or reopen a finished one.
@@ -714,9 +718,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.util.warningDisplay("Open a case first: there is no review to sign off.")
             return
 
-        if self.review['review']['state'] == rev.SIGNED_OFF:
-            reason = qt.QInputDialog.getText(None, "Reopen this case",
-                                             "Why is the review being amended?")
+        if self.review["review"]["state"] == rev.SIGNED_OFF:
+            reason = qt.QInputDialog.getText(None, "Reopen this case", "Why is the review being amended?")
             if not reason:
                 return
             if self.applyToReview(functools.partial(rev.reopen, self.review, now(), reason)):
@@ -751,7 +754,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return bool(verdict) and VERDICT_CHOICES[verdict.currentIndex][1] == rev.REJECTED
 
     def onRowSelected(self, item):
-        self.selected_detection  = item.row() if not isinstance(item, int) else item
+        self.selected_detection = item.row() if not isinstance(item, int) else item
 
         # Leaving a row is where the angle it was left at reaches the disk: the slider itself
         # changes it far too often to write out every time.
@@ -759,9 +762,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateObjectsDisplay()
         self.prepare_slices()
 
-    def unselectAllRows(self,reset_view=True):
+    def unselectAllRows(self, reset_view=True):
         self.tableWidget.clearSelection()
-        self.selected_detection=-1
+        self.selected_detection = -1
         self.updateObjectsDisplay()
         if reset_view:
             self.prepare_slices()
@@ -781,7 +784,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.set_spheres_opacity()
         self.set_spheres_visibility()
 
-
         self.set_markups_color()
         self.set_markups_visibility()
 
@@ -795,8 +797,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         references, and control points added to a node that is no longer in the scene go
         nowhere: the bases, tips and confidence labels silently stop appearing.
         """
-        for attribute, name in (('bases', 'Base'), ('tips', 'Tip'),
-                                ('confidences', 'Confidences')):
+        for attribute, name in (("bases", "Base"), ("tips", "Tip"), ("confidences", "Confidences")):
             node = getattr(self, attribute, None)
             if node is None or not slicer.mrmlScene.IsNodePresent(node):
                 node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
@@ -806,37 +807,38 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not node.GetDisplayNode():
                 node.CreateDefaultDisplayNodes()
 
-    def add_detection_to_scene(self,d):
+    def add_detection_to_scene(self, d):
         # Sphere
-        sphere = createSphere(d['center'],d['radius'])
+        sphere = createSphere(d["center"], d["radius"])
 
         # Assign a unique name to each sphere
-        idx=len(self.spheres)
-        m=createModel(sphere, name=f'Sphere_{idx}')
+        idx = len(self.spheres)
+        m = createModel(sphere, name=f"Sphere_{idx}")
         self.spheres.append(m)
 
         # Line
         line = vtk.vtkLineSource()
-        line.SetPoint1(d['P1'])
-        line.SetPoint2(d['P2'])
+        line.SetPoint1(d["P1"])
+        line.SetPoint2(d["P2"])
         line.SetResolution(30)
         line.Update()
-        m=createModel(line,name=f'Line_{idx}')
+        m = createModel(line, name=f"Line_{idx}")
         self.lines.append(m)
 
         self.ensureMarkupsNodes()
 
         # Confidence score label, the base and the tip: the Nth control point of each
         # belongs to detection N.
-        n = self.confidences.AddControlPoint(d['center'])
-        self.confidences.SetNthControlPointLabel(n, str(det.confidence_percent(d))+" %")
-        self.bases.AddControlPoint(d['P1'])
-        self.tips.AddControlPoint(d['P2'])
+        n = self.confidences.AddControlPoint(d["center"])
+        self.confidences.SetNthControlPointLabel(n, str(det.confidence_percent(d)) + " %")
+        self.bases.AddControlPoint(d["P1"])
+        self.tips.AddControlPoint(d["P2"])
 
     def set_spheres_visibility(self):
         for i in range(len(self.detections)):
             self.spheres[i].GetDisplayNode().SetVisibility(
-                rendering.is_visible(i, self.selected_detection, self.ui.SpheresVisibility.checked))
+                rendering.is_visible(i, self.selected_detection, self.ui.SpheresVisibility.checked)
+            )
 
     def set_spheres_color(self, color=None):
         color = rendering.to_rgb(color if color is not None else self.ui.SpheresColorPicker.color)
@@ -855,7 +857,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def set_lines_visibility(self):
         for i in range(len(self.detections)):
             self.lines[i].GetDisplayNode().SetVisibility(
-                rendering.is_visible(i, self.selected_detection, self.ui.LinesVisibility.checked))
+                rendering.is_visible(i, self.selected_detection, self.ui.LinesVisibility.checked)
+            )
 
     def set_confidence_color(self, color=None):
         if self.confidences.GetDisplayNode():
@@ -867,7 +870,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.confidences:
             for i in range(len(self.detections)):
                 self.confidences.SetNthControlPointVisibility(
-                    i, rendering.is_visible(i, self.selected_detection, self.ui.ConfidenceVisibility.checked))
+                    i, rendering.is_visible(i, self.selected_detection, self.ui.ConfidenceVisibility.checked)
+                )
 
     def set_markups_color(self, color=None):
         if self.bases.GetDisplayNode() and self.tips.GetDisplayNode():
@@ -879,17 +883,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def set_markups_visibility(self):
         for i in range(len(self.detections)):
             value = rendering.is_visible(i, self.selected_detection, self.ui.MarkupsVisibility.checked)
-            self.bases.SetNthControlPointVisibility(i,value)
-            self.tips.SetNthControlPointVisibility(i,value)
+            self.bases.SetNthControlPointVisibility(i, value)
+            self.tips.SetNthControlPointVisibility(i, value)
 
-    def prepare_slices (self):
-        if len(self.detections)==0 or self.selected_detection < 0:
-            self.candidateAxis,self.candidateOrigin,self.candidateRz=geometry.default_frame()
-            angleValue=0 # need to update slices
+    def prepare_slices(self):
+        if len(self.detections) == 0 or self.selected_detection < 0:
+            self.candidateAxis, self.candidateOrigin, self.candidateRz = geometry.default_frame()
+            angleValue = 0  # need to update slices
         else:
-            d=self.detections[self.selected_detection]
-            self.candidateAxis,self.candidateOrigin,self.candidateRz=geometry.candidate_frame(d["P1"],d["P2"])
-            angleValue = d['viewAngle']
+            d = self.detections[self.selected_detection]
+            self.candidateAxis, self.candidateOrigin, self.candidateRz = geometry.candidate_frame(d["P1"], d["P2"])
+            angleValue = d["viewAngle"]
 
         self.reformatLogic = slicer.modules.reformat.logic()
 
@@ -898,7 +902,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # nothing while still needing the new frame applied. Blocking the signal keeps that
         # from reformatting the Red slice twice on every row click.
         wasBlocked = self.ui.rotateAxisSlider.blockSignals(True)
-        self.ui.rotateAxisSlider.value=angleValue
+        self.ui.rotateAxisSlider.value = angleValue
         self.ui.rotateAxisSlider.blockSignals(wasBlocked)
         self.rotateAxisSlider(self.ui.rotateAxisSlider.value)
         self.thicknessSlider(self.ui.thicknessSlider.value)
@@ -911,26 +915,30 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         threeDWidget = layoutManager.threeDWidget(0) if layoutManager else None
         if threeDWidget is None:
             return
-        camera = threeDWidget.threeDView().displayableManagerByClassName('vtkMRMLCameraDisplayableManager').GetCameraWidget().GetCameraNode()
+        camera = (
+            threeDWidget.threeDView()
+            .displayableManagerByClassName("vtkMRMLCameraDisplayableManager")
+            .GetCameraWidget()
+            .GetCameraNode()
+        )
 
-        sliceNode = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        sliceNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed")
         if self.selected_detection < 0 or sliceNode is None:
-            upaxis=np.array([0,0,1])
-            normal=np.array([0,-1,0])
-            origin=np.array([0,0,0])
+            upaxis = np.array([0, 0, 1])
+            normal = np.array([0, -1, 0])
+            origin = np.array([0, 0, 0])
         else:
-            m=sliceNode.GetSliceToRAS()
-            upaxis=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
-            normal=np.array(m.MultiplyDoublePoint([0,0,1,0]))[:3]
-            origin=np.array(m.MultiplyDoublePoint([0,0,0,1]))[:3]
+            m = sliceNode.GetSliceToRAS()
+            upaxis = np.array(m.MultiplyDoublePoint([0, 1, 0, 0]))[:3]
+            normal = np.array(m.MultiplyDoublePoint([0, 0, 1, 0]))[:3]
+            origin = np.array(m.MultiplyDoublePoint([0, 0, 0, 1]))[:3]
 
         # keep the current distance, only move the camera around the target
-        distance=np.linalg.norm(np.array(camera.GetFocalPoint())-np.array(camera.GetPosition()))
+        distance = np.linalg.norm(np.array(camera.GetFocalPoint()) - np.array(camera.GetPosition()))
 
         camera.SetFocalPoint(origin.tolist())
-        camera.SetPosition(geometry.camera_position(origin,normal,distance).tolist())
+        camera.SetPosition(geometry.camera_position(origin, normal, distance).tolist())
         camera.SetViewUp(upaxis.tolist())
-
 
     def set_volume_visibility(self):
         if self.volNode:
@@ -941,21 +949,20 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def set_volume_translucent(self):
         self.updateScalarOpacity()
 
-    def prepareAnnotationNode(self, name='P'):
+    def prepareAnnotationNode(self, name="P"):
         if self.tmpMark:
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
             slicer.mrmlScene.RemoveNode(self.tmpSphere)
-            self.tmpSphere : slicer.vtkMRMLModelNode = None
+            self.tmpSphere: slicer.vtkMRMLModelNode = None
 
-        node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode",name)
+        node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", name)
         node.CreateDefaultDisplayNodes()
 
         node.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.drawAnnotationSpheres)
         node.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.MoveSpheres)
 
         self.tmpMark = node
-
 
     def addAnnotationNode(self):
         self.unselectAllRows(reset_view=False)
@@ -969,15 +976,15 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.okButton.setEnabled(True)
         self.ui.cancelButton.setEnabled(True)
 
-    def removeAnnotationNodes(self,caller=None, event=None):
+    def removeAnnotationNodes(self, caller=None, event=None):
         if self.tmpMark:
             slicer.mrmlScene.RemoveNode(self.tmpMark)
         if self.tmpSphere:
             slicer.mrmlScene.RemoveNode(self.tmpSphere)
 
-        self.tmpMark : slicer.vtkMRMLMarkupsFiducialNode = None
-        self.tmpSphere : slicer.vtkMRMLModelNode = None
-        self.tmpSphereSource : slicer.vtkSphereSource = None
+        self.tmpMark: slicer.vtkMRMLMarkupsFiducialNode = None
+        self.tmpSphere: slicer.vtkMRMLModelNode = None
+        self.tmpSphereSource: slicer.vtkSphereSource = None
 
         self.ui.addButton.setEnabled(True)
         self.ui.okButton.setEnabled(False)
@@ -988,8 +995,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not markups or markups.GetNumberOfControlPoints() != 2:
             # Otherwise OK looks broken: nothing happens and Add stays greyed out, with no
             # indication that the base and the tip both have to be placed first.
-            slicer.util.warningDisplay("Place two points — the base, then the tip — "
-                                       "before pressing OK, or press Cancel to start over.")
+            slicer.util.warningDisplay(
+                "Place two points — the base, then the tip — before pressing OK, or press Cancel to start over."
+            )
             return
 
         p1, p2 = np.empty(3), np.empty(3)
@@ -1001,23 +1009,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.review:
             # Its key comes from the review, which owns the reviewer's own findings: the
             # detection file is the detector's and is never written to.
-            key = rev.add_detection(self.review, detection['P1'], detection['P2'], now())
+            key = rev.add_detection(self.review, detection["P1"], detection["P2"], now())
             detection[det.SOURCE_KEY] = key
             self.saveReview()
         self.detections.append(detection)
         self.add_detection_to_table(detection)
         self.add_detection_to_scene(detection)
-        self.selected_detection = self.tableWidget.rowCount-1
-        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,0))
+        self.selected_detection = self.tableWidget.rowCount - 1
+        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection, 0))
         self.onRowSelected(self.selected_detection)
         self.updateObjectsDisplay()
         self.ui.addButton.setEnabled(True)
         self.ui.okButton.setEnabled(False)
         self.ui.cancelButton.setEnabled(False)
 
-
     def drawAnnotationSpheres(self, caller=None, event=None):
-        markups : slicer.vtkMRMLMarkupsFiducialNode = caller
+        markups: slicer.vtkMRMLMarkupsFiducialNode = caller
         nb_points = markups.GetNumberOfControlPoints()
         if nb_points < 2:
             return
@@ -1029,17 +1036,16 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         markups.GetNthControlPointPositionWorld(1, p2)
 
         detection = det.from_points(p1, p2)
-        self.tmpSphereSource = createSphere(detection['center'],detection['radius'])
-        self.tmpSphere=createModel(self.tmpSphereSource, name='Tmp Sphere')
+        self.tmpSphereSource = createSphere(detection["center"], detection["radius"])
+        self.tmpSphere = createModel(self.tmpSphereSource, name="Tmp Sphere")
 
         self.tmpSphere.GetDisplayNode().SetVisibility(True)
         color = rendering.to_rgb(self.ui.SpheresColorPicker.color)
         self.tmpSphere.GetDisplayNode().SetColor(color)
         self.tmpSphere.GetDisplayNode().SetOpacity(self.ui.SpheresOpacity.value)
 
-
     def MoveSpheres(self, caller=None, event=None):
-        markups : slicer.vtkMRMLMarkupsFiducial = caller
+        markups: slicer.vtkMRMLMarkupsFiducial = caller
 
         # PointModifiedEvent still fires after a point is deleted, and reading a control
         # point that no longer exists leaves the np.empty buffer holding whatever was in that
@@ -1049,13 +1055,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             markups.GetNthControlPointPositionWorld(0, p1)
             markups.GetNthControlPointPositionWorld(1, p2)
             detection = det.from_points(p1, p2)
-            self.tmpSphereSource.SetCenter(detection['center'])
-            self.tmpSphereSource.SetRadius(detection['radius'])
+            self.tmpSphereSource.SetCenter(detection["center"])
+            self.tmpSphereSource.SetRadius(detection["radius"])
             self.tmpSphereSource.Update()
             slicer.util.forceRenderAllViews()
-
-
-
 
     def reset(self):
         for node in self.spheres:
@@ -1098,10 +1101,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # review that failed to load is None here, and is left exactly as it is on disk.
         self.saveReview()
 
-        self.spheres=[]
-        self.lines=[]
-        self.detections=[]
-        self.volNode : slicer.vtkMRMLScalarVolumeNode = None
+        self.spheres = []
+        self.lines = []
+        self.detections = []
+        self.volNode: slicer.vtkMRMLScalarVolumeNode = None
         self.volProp = None
         self.roiNode = None
 
@@ -1181,12 +1184,12 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
-        slicer.util.selectModule('ReformatViz')
+        slicer.util.selectModule("ReformatViz")
         return slicer.modules.ReformatVizWidget
 
     def _samplePath(self):
         # Ships with the source tree, not with the installed extension.
-        return Path(__file__).parents[1] / 'tests' / 'data' / 'detections_sample.json'
+        return Path(__file__).parents[1] / "tests" / "data" / "detections_sample.json"
 
     def _addTestVolume(self):
         """Add a synthetic 1 mm volume large enough to contain every sample detection.
@@ -1199,13 +1202,12 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         ijkToRAS[:3, 3] = [-64.0, -64.0, -64.0]
         array = np.zeros((128, 128, 128), dtype=np.int16)
         array[32:96, 32:96, 32:96] = 400
-        volume = slicer.util.addVolumeFromArray(array, ijkToRAS=ijkToRAS,
-                                                name='ReformatVizTestVolume')
+        volume = slicer.util.addVolumeFromArray(array, ijkToRAS=ijkToRAS, name="ReformatVizTestVolume")
         slicer.util.setSliceViewerLayers(background=volume, fit=True)
         return volume
 
     def test_a_hand_placed_annotation_becomes_a_detection(self):
-        self.delayDisplay('Two placed points become a detection the reviewer can score')
+        self.delayDisplay("Two placed points become a detection the reviewer can score")
         widget = self._widget()
         widget.reset()
         widget.volNode = self._addTestVolume()
@@ -1220,9 +1222,9 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         detection = widget.detections[0]
         # Placed by the reviewer, not by a detector: 'added' is what keeps it at the end of
         # the table after a save and reload, whatever its confidence.
-        self.assertEqual(detection['added'], 1)
-        self.assertEqual(detection['center'], [10.0, 0.0, 3.0])
-        self.assertAlmostEqual(detection['radius'], 3.0)
+        self.assertEqual(detection["added"], 1)
+        self.assertEqual(detection["center"], [10.0, 0.0, 3.0])
+        self.assertAlmostEqual(detection["radius"], 3.0)
         # The row, the sphere, the line and the three markups points all have to arrive
         # together, or the positional invariant between them is already broken.
         self.assertEqual(widget.tableWidget.rowCount, 1)
@@ -1235,7 +1237,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.tmpSphere)
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def _buildCase(self):
         """Write a patient-shaped directory: one volume, one detection file.
@@ -1243,17 +1245,16 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         The same thing load_files finds behind the directory dialog, which the tests cannot
         open — so they call load_detections and startReview the way it does.
         """
-        directory = Path(slicer.util.tempDirectory()) / 'case'
+        directory = Path(slicer.util.tempDirectory()) / "case"
         directory.mkdir()
         volume = self._addTestVolume()
-        self.assertTrue(slicer.util.saveNode(volume, str(directory / 'angio.nii.gz')))
-        (directory / 'detections.json').write_text(self._samplePath().read_text())
+        self.assertTrue(slicer.util.saveNode(volume, str(directory / "angio.nii.gz")))
+        (directory / "detections.json").write_text(self._samplePath().read_text())
         return directory
 
     def _openCase(self, widget, directory):
-        self.assertTrue(widget.load_detections(directory / 'detections.json'))
-        self.assertTrue(widget.startReview(directory, directory / 'angio.nii.gz',
-                                           directory / 'detections.json'))
+        self.assertTrue(widget.load_detections(directory / "detections.json"))
+        self.assertTrue(widget.startReview(directory, directory / "angio.nii.gz", directory / "detections.json"))
         widget.create_spheres()
         widget.fillReviewTable()
 
@@ -1266,7 +1267,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.tableWidget.cellWidget(row, COL_VERDICT).setCurrentIndex(index)
 
     def test_a_verdict_reaches_the_review_file_without_being_asked_to(self):
-        self.delayDisplay('A verdict is recorded, with its reason, and autosaved')
+        self.delayDisplay("A verdict is recorded, with its reason, and autosaved")
         widget = self._widget()
         widget.reset()
         directory = self._buildCase()
@@ -1275,57 +1276,56 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # The review exists from the moment the case is opened, with nothing decided.
         onDisk = rev.load(self._reviewFile(directory))
         self.assertEqual(len(rev.undecided_keys(onDisk)), 3)
-        self.assertEqual(onDisk['source']['detectionFile'], 'detections.json')
-        self.assertEqual(onDisk['review']['reviewer'], reviewerName())
+        self.assertEqual(onDisk["source"]["detectionFile"], "detections.json")
+        self.assertEqual(onDisk["review"]["reviewer"], reviewerName())
 
         key = widget.detections[0][det.SOURCE_KEY]
-        self._setVerdict(widget, 0, 'No')
+        self._setVerdict(widget, 0, "No")
         widget.tableWidget.cellWidget(0, COL_REASON).setCurrentIndex(1)  # infundibulum
 
         # No save was asked for: the file already says so.
         onDisk = rev.load(self._reviewFile(directory))
-        self.assertEqual(rev.entry(onDisk, key)['state'], rev.REJECTED)
-        self.assertEqual(rev.entry(onDisk, key)['reason'], 'infundibulum')
+        self.assertEqual(rev.entry(onDisk, key)["state"], rev.REJECTED)
+        self.assertEqual(rev.entry(onDisk, key)["reason"], "infundibulum")
         # And the candidates nobody looked at are still telling the truth about themselves.
         self.assertEqual(len(rev.undecided_keys(onDisk)), 2)
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_a_case_cannot_be_signed_off_until_every_candidate_is_decided(self):
-        self.delayDisplay('Sign-off waits for the last undecided candidate')
+        self.delayDisplay("Sign-off waits for the last undecided candidate")
         widget = self._widget()
         widget.reset()
         directory = self._buildCase()
         self._openCase(widget, directory)
 
-        self._setVerdict(widget, 0, 'Yes')
+        self._setVerdict(widget, 0, "Yes")
         widget.onSignOff()  # refused: two candidates are still undecided
-        self.assertEqual(rev.load(self._reviewFile(directory))['review']['state'],
-                         rev.IN_REVIEW)
+        self.assertEqual(rev.load(self._reviewFile(directory))["review"]["state"], rev.IN_REVIEW)
 
-        self._setVerdict(widget, 1, 'No')
-        self._setVerdict(widget, 2, 'Not assessable')
+        self._setVerdict(widget, 1, "No")
+        self._setVerdict(widget, 2, "Not assessable")
         widget.onSignOff()
 
         onDisk = rev.load(self._reviewFile(directory))
-        self.assertEqual(onDisk['review']['state'], rev.SIGNED_OFF)
-        self.assertIsNotNone(onDisk['review']['signedOffAt'])
+        self.assertEqual(onDisk["review"]["state"], rev.SIGNED_OFF)
+        self.assertIsNotNone(onDisk["review"]["signedOffAt"])
         # A finished case does not accept more verdicts without a recorded reopen.
         self.assertFalse(widget.tableWidget.cellWidget(0, COL_VERDICT).enabled)
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_a_case_is_resumed_exactly_as_it_was_left(self):
-        self.delayDisplay('Reopening a case restores its verdicts and its own findings')
+        self.delayDisplay("Reopening a case restores its verdicts and its own findings")
         widget = self._widget()
         widget.reset()
         directory = self._buildCase()
         self._openCase(widget, directory)
 
         key = widget.detections[0][det.SOURCE_KEY]
-        self._setVerdict(widget, 0, 'Yes')
+        self._setVerdict(widget, 0, "Yes")
         widget.tableWidget.cellWidget(0, COL_LIKERT).setCurrentIndex(4)
         widget.onRowSelected(0)
         widget.rotateAxisSlider(35)
@@ -1343,56 +1343,57 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self._openCase(widget, directory)
 
         self.assertEqual(len(widget.detections), 4)
-        self.assertEqual(rev.entry(widget.review, key)['state'], rev.CONFIRMED)
-        self.assertEqual(rev.entry(widget.review, key)['likert'], 4)
-        self.assertEqual(rev.entry(widget.review, key)['viewAngle'], 35)
+        self.assertEqual(rev.entry(widget.review, key)["state"], rev.CONFIRMED)
+        self.assertEqual(rev.entry(widget.review, key)["likert"], 4)
+        self.assertEqual(rev.entry(widget.review, key)["viewAngle"], 35)
         # The reviewer's own finding is back, with its verdict and its geometry.
         self.assertEqual(widget.detections[-1][det.SOURCE_KEY], addedKey)
-        self.assertEqual(rev.entry(widget.review, addedKey)['state'], rev.CONFIRMED)
-        self.assertEqual(widget.detections[-1]['P2'], [10.0, 0.0, 6.0])
+        self.assertEqual(rev.entry(widget.review, addedKey)["state"], rev.CONFIRMED)
+        self.assertEqual(widget.detections[-1]["P2"], [10.0, 0.0, 6.0])
         # ...including in the views and the table, not only in the record.
         self.assertEqual(len(widget.spheres), 4)
         self.assertEqual(widget.tableWidget.rowCount, 4)
         # And the table shows what was decided rather than a fresh set of defaults.
-        self.assertEqual(widget.tableWidget.cellWidget(0, COL_VERDICT).currentIndex,
-                         [s for _, s in VERDICT_CHOICES].index(rev.CONFIRMED))
+        self.assertEqual(
+            widget.tableWidget.cellWidget(0, COL_VERDICT).currentIndex,
+            [s for _, s in VERDICT_CHOICES].index(rev.CONFIRMED),
+        )
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_a_case_whose_review_cannot_be_read_is_not_opened(self):
-        self.delayDisplay('An unreadable review is never overwritten')
+        self.delayDisplay("An unreadable review is never overwritten")
         widget = self._widget()
         widget.reset()
         directory = self._buildCase()
-        self._reviewFile(directory).write_text('{ this is not a review')
+        self._reviewFile(directory).write_text("{ this is not a review")
 
-        self.assertTrue(widget.load_detections(directory / 'detections.json'))
-        self.assertFalse(widget.startReview(directory, directory / 'angio.nii.gz',
-                                            directory / 'detections.json'))
+        self.assertTrue(widget.load_detections(directory / "detections.json"))
+        self.assertFalse(widget.startReview(directory, directory / "angio.nii.gz", directory / "detections.json"))
         self.assertIsNone(widget.review)
         # Still exactly as it was: starting a second review over it would be the one
         # unrecoverable thing here.
-        self.assertEqual(self._reviewFile(directory).read_text(), '{ this is not a review')
+        self.assertEqual(self._reviewFile(directory).read_text(), "{ this is not a review")
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_a_signed_off_case_reopens_locked(self):
-        self.delayDisplay('A case signed off in an earlier session comes back locked')
+        self.delayDisplay("A case signed off in an earlier session comes back locked")
         widget = self._widget()
         widget.reset()
         directory = self._buildCase()
         self._openCase(widget, directory)
 
-        for row, verdict in enumerate(('Yes', 'No', 'Not assessable')):
+        for row, verdict in enumerate(("Yes", "No", "Not assessable")):
             self._setVerdict(widget, row, verdict)
         widget.onSignOff()
 
         # Away and back, the way the next session reaches it: off disk, already finished.
         widget.reset()
         self._openCase(widget, directory)
-        self.assertEqual(widget.review['review']['state'], rev.SIGNED_OFF)
+        self.assertEqual(widget.review["review"]["state"], rev.SIGNED_OFF)
 
         for row in range(widget.tableWidget.rowCount):
             # Locked on the way in, not only after onSignOff — otherwise the controls invite
@@ -1400,14 +1401,13 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             self.assertFalse(widget.tableWidget.cellWidget(row, COL_VERDICT).enabled)
             self.assertFalse(widget.tableWidget.cellWidget(row, COL_LIKERT).enabled)
             self.assertFalse(widget.tableWidget.cellWidget(row, COL_REASON).enabled)
-            self.assertFalse(widget.tableWidget.item(row, COL_NOTE).flags()
-                             & qt.Qt.ItemIsEditable)
+            self.assertFalse(widget.tableWidget.item(row, COL_NOTE).flags() & qt.Qt.ItemIsEditable)
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_the_last_view_angle_survives_clean(self):
-        self.delayDisplay('The angle the reviewer left the last row at is written out')
+        self.delayDisplay("The angle the reviewer left the last row at is written out")
         widget = self._widget()
         widget.reset()
         directory = self._buildCase()
@@ -1421,11 +1421,11 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.reset()
 
         onDisk = rev.load(self._reviewFile(directory))
-        self.assertEqual(rev.entry(onDisk, key)['viewAngle'], 42)
-        self.delayDisplay('Passed')
+        self.assertEqual(rev.entry(onDisk, key)["viewAngle"], 42)
+        self.delayDisplay("Passed")
 
     def test_a_note_on_a_candidate_with_no_case_open_is_ignored(self):
-        self.delayDisplay('A note typed against a bare volume is dropped, not a traceback')
+        self.delayDisplay("A note typed against a bare volume is dropped, not a traceback")
         widget = self._widget()
         widget.reset()
         widget.volNode = self._addTestVolume()
@@ -1444,14 +1444,14 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # swallows an exception raised inside a slot — it prints the traceback and lets
         # setText return normally, so the signal path alone would pass either way.
         item = widget.tableWidget.item(0, COL_NOTE)
-        item.setText('looks like an infundibulum')
+        item.setText("looks like an infundibulum")
         widget.onNoteEdited(item)
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_the_volume_colour_picker_survives_missing_rendering_nodes(self):
-        self.delayDisplay('Recolouring a volume with no rendering display node does nothing')
+        self.delayDisplay("Recolouring a volume with no rendering display node does nothing")
         widget = self._widget()
         widget.reset()
         # Added straight to the scene, so it has no volume-rendering display node — the state
@@ -1461,14 +1461,14 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.set_volume_color()
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_the_data_probe_is_hidden_while_the_module_is_open(self):
-        self.delayDisplay('The data probe is hidden on entry and put back on the way out')
+        self.delayDisplay("The data probe is hidden on entry and put back on the way out")
         widget = self._widget()
         probe = widget.dataProbeWidget()
         if probe is None:
-            self.delayDisplay('Skipped: this session has no data probe')
+            self.delayDisplay("Skipped: this session has no data probe")
             return
 
         probe.setVisible(True)
@@ -1484,18 +1484,18 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertFalse(probe.visible)
 
         widget.enter()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_a_case_opens_without_disturbing_the_rest_of_the_scene(self):
-        self.delayDisplay('Another module\'s volume and ROI survive a case being opened')
+        self.delayDisplay("Another module's volume and ROI survive a case being opened")
         widget = self._widget()
         widget.reset()
 
         # Somebody else's data, of exactly the two classes this module used to adopt by
         # taking the first node of a class it found.
         foreignVolume = self._addTestVolume()
-        foreignVolume.SetName('ForeignVolume')
-        foreignRoi = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode', 'ForeignROI')
+        foreignVolume.SetName("ForeignVolume")
+        foreignRoi = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "ForeignROI")
 
         directory = self._buildCase()
         widget.openCase(directory)
@@ -1520,23 +1520,23 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.ui.cropBox.checked = False
         slicer.mrmlScene.RemoveNode(foreignVolume)
         slicer.mrmlScene.RemoveNode(foreignRoi)
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_module_loads(self):
-        self.delayDisplay('Module loads and builds its widget')
+        self.delayDisplay("Module loads and builds its widget")
         widget = self._widget()
         self.assertIsNotNone(widget)
         self.assertEqual(widget.selected_detection, -1)
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_detections_become_scene_nodes(self):
-        self.delayDisplay('A detection file becomes spheres, lines and markups')
+        self.delayDisplay("A detection file becomes spheres, lines and markups")
         widget = self._widget()
         widget.reset()
 
         sample = self._samplePath()
         if not sample.exists():
-            self.delayDisplay(f'Skipped: no sample data at {sample}')
+            self.delayDisplay(f"Skipped: no sample data at {sample}")
             return
 
         widget.load_detections(sample)
@@ -1552,23 +1552,23 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.reset()
         self.assertEqual(widget.spheres, [])
         self.assertEqual(widget.bases.GetNumberOfControlPoints(), 0)
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_selecting_a_row_aligns_the_red_slice(self):
-        self.delayDisplay('Selecting a detection puts its axis in the Red slice')
+        self.delayDisplay("Selecting a detection puts its axis in the Red slice")
         widget = self._widget()
         widget.reset()
 
         sample = self._samplePath()
         if not sample.exists():
-            self.delayDisplay(f'Skipped: no sample data at {sample}')
+            self.delayDisplay(f"Skipped: no sample data at {sample}")
             return
 
         widget.volNode = self._addTestVolume()
         widget.load_detections(sample)
         widget.create_spheres()
 
-        sliceNode = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeRed')
+        sliceNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed")
         for row in range(len(widget.detections)):
             widget.onRowSelected(row)
             m = slicer.util.arrayFromVTKMatrix(sliceNode.GetSliceToRAS())
@@ -1584,16 +1584,16 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             self.assertAlmostEqual(float(sliceY @ widget.candidateAxis), 1.0, places=3)
 
         widget.reset()
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")
 
     def test_closing_the_scene_resets_the_widget(self):
-        self.delayDisplay('Closing the scene empties the widget state')
+        self.delayDisplay("Closing the scene empties the widget state")
         widget = self._widget()
         widget.reset()
 
         sample = self._samplePath()
         if not sample.exists():
-            self.delayDisplay(f'Skipped: no sample data at {sample}')
+            self.delayDisplay(f"Skipped: no sample data at {sample}")
             return
 
         widget.volNode = self._addTestVolume()
@@ -1619,4 +1619,4 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         for markups in (widget.bases, widget.tips, widget.confidences):
             self.assertTrue(slicer.mrmlScene.IsNodePresent(markups))
             self.assertEqual(markups.GetNumberOfControlPoints(), 0)
-        self.delayDisplay('Passed')
+        self.delayDisplay("Passed")

@@ -305,8 +305,9 @@ def main():
     detections_path = OUT_DIR / DETECTIONS_NAME
     detections_path.write_text(dumps(detection_file()))
 
-    print(f"{volume_path}: {shape[0]}x{shape[1]}x{shape[2]} at {SPACING} mm, "
-          f"{volume_path.stat().st_size / 1024:.0f} KiB")
+    print(
+        f"{volume_path}: {shape[0]}x{shape[1]}x{shape[2]} at {SPACING} mm, {volume_path.stat().st_size / 1024:.0f} KiB"
+    )
     print(f"{detections_path}: {len(detection_file())} candidates")
 
 

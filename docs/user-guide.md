@@ -112,7 +112,7 @@ Who the review is attributed to is your OS user name. To set it explicitly, in t
 console:
 
 ```python
-slicer.app.userSettings().setValue('ReformatViz/Reviewer', 'ykerrien')
+slicer.app.userSettings().setValue("ReformatViz/Reviewer", "ykerrien")
 ```
 
 See [`review-format.md`](review-format.md) for what the file contains.

@@ -60,6 +60,7 @@ python -m pytest -x -vv               # stop at the first failure, verbose
 
 ruff check .                          # lint + the import boundary
 ruff check --fix .
+ruff format .                         # the formatting CI checks with --check
 ```
 
 `pytest` finds `ReformatVizLib` through `pythonpath = ["ReformatViz"]` in `pyproject.toml`,
@@ -157,19 +158,20 @@ checks, so a push cannot be green on one and red on the other:
 | [`.github/workflows/checks.yml`](../.github/workflows/checks.yml) | GitHub Actions |
 | [`.gitlab-ci.yml`](../.gitlab-ci.yml) | GitLab |
 
-Each runs `ruff check .` and `python -m pytest` on Python 3.11, and nothing else. The
-in-Slicer test is wired up on neither: booting Slicer takes minutes and a container image, and
-gating every commit on that is how CI ends up switched off. Both files carry a commented
-`slicer-tests` job recording what enabling it would take. **Change one file, change the
-other** — the point of them is that they agree.
+Each runs `ruff check .`, `ruff format --check .` and `python -m pytest` on Python 3.11, and
+nothing else. The in-Slicer test is wired up on neither: booting Slicer takes minutes and a
+container image, and gating every commit on that is how CI ends up switched off. Both files
+carry a commented `slicer-tests` job recording what enabling it would take. **Change one file,
+change the other** — the point of them is that they agree.
 
 ## Conventions
 
 - One logical change per commit; `[TAG] imperative summary` with TAG one of `[FEAT] [FIX]
   [REFACTOR] [CHORE] [DOCS] [TEST] [PERF]`. Explain *why* in the body.
 - Branch per task from `main`, prefixed `feat/ fix/ refactor/ chore/ docs/ test/`.
-- `ruff check .` and `pytest` must pass before committing. Do not add lint exemptions
-  without a comment giving the reason — the existing ones in `pyproject.toml` all have one.
+- `ruff check .`, `ruff format --check .` and `pytest` must pass before committing. Do not add
+  lint exemptions without a comment giving the reason — the existing ones in `pyproject.toml`
+  all have one.
 - Behaviour change → update `CHANGELOG.md`. Detection format change → also
   `docs/detection-format.md`, and treat it as breaking for whatever writes those files.
 - `ReformatVizLib` is snake_case (plain Python); the widget keeps Qt's camelCase for slots.
