@@ -42,7 +42,7 @@ class TestIsVisible:
         assert not any(rendering.is_visible(i, -1, checked=False) for i in range(3))
 
     def test_a_selection_hides_the_other_detections(self):
-        # Otherwise the aneurysm under review is surrounded by its neighbours' spheres.
+        # Otherwise the candidate under review is surrounded by its neighbours' spheres.
         assert rendering.is_visible(1, 1, checked=True)
         assert not rendering.is_visible(0, 1, checked=True)
         assert not rendering.is_visible(2, 1, checked=True)

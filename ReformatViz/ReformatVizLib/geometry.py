@@ -1,8 +1,8 @@
 # Copyright the ReformatViz authors. Licensed under the Apache License, Version 2.0.
 """Geometry behind the oblique reformatting, in RAS world coordinates.
 
-The reviewer looks at an aneurysm along a slice that always *contains* the aneurysm axis
-(the P1 ostium to P2 dome direction) and spins that slice around the axis. The functions
+The reviewer looks at a candidate along a slice that always *contains* its axis
+(the P1 base to P2 tip direction) and spins that slice around the axis. The functions
 here produce the vectors and angles that arrangement needs; the caller hands them to
 Slicer's reformat logic.
 """
@@ -15,7 +15,7 @@ import numpy as np
 # coordinates, where the tighter machine epsilon would not catch a degenerate vector.
 EPS = np.finfo(np.float64).resolution
 
-#: Used when there is no aneurysm to look at, or when P1 and P2 coincide.
+#: Used when there is no candidate to look at, or when P1 and P2 coincide.
 DEFAULT_AXIS = np.array([0.0, 1.0, 0.0])
 
 #: Below this separation (mm) P1 and P2 give no usable direction.
@@ -53,8 +53,8 @@ def rotate2Z(v):
     return np.array([R0, R1, vn], dtype=np.float64)
 
 
-def aneurysm_frame(P1, P2):
-    """Return ``(axis, origin, Rz)`` for the aneurysm running from ``P1`` to ``P2``.
+def candidate_frame(P1, P2):
+    """Return ``(axis, origin, Rz)`` for the candidate running from ``P1`` to ``P2``.
 
     ``axis`` is the unit P1->P2 direction (``DEFAULT_AXIS`` if the two points coincide),
     ``origin`` their midpoint, and ``Rz`` the matrix that takes ``axis`` onto +Z.
@@ -72,10 +72,10 @@ def default_frame():
 
 
 def slice_normal(Rz, angle_deg):
-    """Return the slice normal ``angle_deg`` around the aneurysm axis.
+    """Return the slice normal ``angle_deg`` around the candidate's axis.
 
     The result is perpendicular to the axis that ``Rz`` maps to +Z, which is what keeps the
-    aneurysm axis inside the slice at every angle.
+    candidate's axis inside the slice at every angle.
     """
     angle = math.radians(angle_deg)
     return Rz.T @ np.array([math.cos(angle), math.sin(angle), 0.0])
@@ -84,7 +84,7 @@ def slice_normal(Rz, angle_deg):
 def in_plane_roll_deg(slice_x, slice_y, axis):
     """Return the in-plane rotation (degrees) that points ``axis`` along the slice +Y.
 
-    Without this the aneurysm would appear to tumble as the reviewer rotates the view;
+    Without this the candidate would appear to tumble as the reviewer rotates the view;
     with it, it stays upright.
     """
     ca = np.asarray(slice_y) @ axis

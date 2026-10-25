@@ -21,7 +21,7 @@ def is_visible(index, selected_index, checked):
     """Whether detection ``index``'s annotations should be shown.
 
     The reviewer's checkbox decides, but only for the detection they have selected: while one
-    row is selected the others are hidden, so the aneurysm under review is not surrounded by
+    row is selected the others are hidden, so the candidate under review is not surrounded by
     its neighbours' spheres. ``selected_index`` below zero means no selection, which shows
     every detection.
     """

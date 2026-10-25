@@ -19,7 +19,7 @@ import numpy as np
 
 from ReformatVizLib import jsonio
 
-#: Positions every detection must carry: the ostium and the dome, in RAS millimetres.
+#: Positions every detection must carry: the base (P1) and the tip (P2), in RAS millimetres.
 REQUIRED_KEYS = ("P1", "P2")
 
 #: Keys derived from P1/P2 when a producer omits them.
@@ -68,7 +68,7 @@ def add_missing_info(d):
 
 
 def from_points(p1, p2):
-    """Return a complete detection for an ostium and a dome the reviewer placed by hand.
+    """Return a complete detection for a base and a tip the reviewer placed by hand.
 
     ``added`` marks it as the reviewer's own: it keeps the detection at the end of the review
     table whatever its confidence (see :func:`sort_for_review`) and is written back out with
@@ -123,7 +123,7 @@ def validate(data):
 
     Every entry is checked, not just the first: :func:`add_missing_info` derives
     ``center``/``radius`` from ``P1``/``P2`` and would fail on a partially valid file.
-    A single bad entry rejects the whole file — silently dropping a candidate aneurysm
+    A single bad entry rejects the whole file — silently dropping a candidate
     from a review list is worse than refusing to open it.
     """
     if not data:

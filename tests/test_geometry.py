@@ -1,9 +1,9 @@
 # Copyright the ReformatViz authors. Licensed under the Apache License, Version 2.0.
 """The reformatting geometry.
 
-The property that matters clinically is in :class:`TestSliceContainsTheAneurysmAxis`: at
-every rotation angle the reviewer can dial, the slice must still contain the aneurysm axis.
-If that breaks, the reviewer is measuring a foreshortened aneurysm without being told.
+The property that matters clinically is in :class:`TestSliceContainsTheCandidateAxis`: at
+every rotation angle the reviewer can dial, the slice must still contain the candidate's axis.
+If that breaks, the reviewer is measuring a foreshortened candidate without being told.
 """
 
 import math
@@ -50,9 +50,9 @@ class TestRotate2Z:
         assert np.linalg.norm(geo.slice_normal(R, 45)) == pytest.approx(1.0, abs=1e-12)
 
     def test_third_row_is_the_unit_input_for_a_straight_down_axis(self):
-        # A dome directly below its ostium. The identity used to be returned here, which maps
+        # A tip directly below its base. The identity used to be returned here, which maps
         # the axis onto -Z instead of +Z: still perpendicular, so nothing looked broken, but
-        # the rotation slider turned the view the opposite way for those aneurysms alone.
+        # the rotation slider turned the view the opposite way for those candidates alone.
         R = geo.rotate2Z([0.0, 0.0, -1.0])
         assert R[2] == pytest.approx([0, 0, -1])
         assert R @ np.array([0.0, 0.0, -1.0]) == pytest.approx([0, 0, 1])
@@ -65,32 +65,32 @@ class TestRotate2Z:
         assert geo.rotate2Z([0.0, 0.0, 0.0]) == pytest.approx(np.eye(3))
 
 
-class TestAneurysmFrame:
-    def test_axis_is_the_unit_ostium_to_dome_direction(self):
-        axis, _, _ = geo.aneurysm_frame([0, 0, 0], [0, 0, 5])
+class TestCandidateFrame:
+    def test_axis_is_the_unit_base_to_tip_direction(self):
+        axis, _, _ = geo.candidate_frame([0, 0, 0], [0, 0, 5])
         assert axis == pytest.approx([0, 0, 1])
 
     def test_origin_is_the_midpoint(self):
-        _, origin, _ = geo.aneurysm_frame([0, 0, 0], [4, 2, -6])
+        _, origin, _ = geo.candidate_frame([0, 0, 0], [4, 2, -6])
         assert origin == pytest.approx([2, 1, -3])
 
     def test_rz_matches_the_axis(self):
-        axis, _, Rz = geo.aneurysm_frame([1, 1, 1], [2, 3, 5])
+        axis, _, Rz = geo.candidate_frame([1, 1, 1], [2, 3, 5])
         assert Rz[2] == pytest.approx(axis)
 
-    def test_rz_matches_the_axis_when_the_dome_sits_below_the_ostium(self):
-        axis, _, Rz = geo.aneurysm_frame([0, 0, 10], [0, 0, 0])
+    def test_rz_matches_the_axis_when_the_tip_sits_below_the_base(self):
+        axis, _, Rz = geo.candidate_frame([0, 0, 10], [0, 0, 0])
         assert axis == pytest.approx([0, 0, -1])
         assert Rz[2] == pytest.approx(axis)
 
     def test_coincident_points_fall_back_to_the_default_axis(self):
-        axis, origin, _ = geo.aneurysm_frame([7, 7, 7], [7, 7, 7])
+        axis, origin, _ = geo.candidate_frame([7, 7, 7], [7, 7, 7])
         assert axis == pytest.approx(geo.DEFAULT_AXIS)
         assert origin == pytest.approx([7, 7, 7])
 
     def test_does_not_mutate_its_arguments(self):
         P1, P2 = [0, 0, 0], [0, 0, 5]
-        geo.aneurysm_frame(P1, P2)
+        geo.candidate_frame(P1, P2)
         assert (P1, P2) == ([0, 0, 0], [0, 0, 5])
 
     def test_default_frame_sits_at_the_origin(self):
@@ -100,7 +100,7 @@ class TestAneurysmFrame:
         assert Rz[2] == pytest.approx(geo.DEFAULT_AXIS)
 
 
-class TestSliceContainsTheAneurysmAxis:
+class TestSliceContainsTheCandidateAxis:
     """The invariant the whole reformatting exists to hold."""
 
     @pytest.mark.parametrize("angle", ANGLES)
@@ -111,22 +111,22 @@ class TestSliceContainsTheAneurysmAxis:
         ([3, -4, 12], [-7, 2, 0.5]),
     ])
     def test_normal_stays_perpendicular_to_the_axis_at_every_angle(self, P1, P2, angle):
-        axis, _, Rz = geo.aneurysm_frame(P1, P2)
+        axis, _, Rz = geo.candidate_frame(P1, P2)
         normal = geo.slice_normal(Rz, angle)
         assert normal @ axis == pytest.approx(0, abs=1e-12)
 
     @pytest.mark.parametrize("angle", ANGLES)
     def test_normal_is_a_unit_vector(self, angle):
-        _, _, Rz = geo.aneurysm_frame([0, 0, 0], [1, 2, 3])
+        _, _, Rz = geo.candidate_frame([0, 0, 0], [1, 2, 3])
         assert np.linalg.norm(geo.slice_normal(Rz, angle)) == pytest.approx(1.0)
 
     def test_the_angle_actually_turns_the_view(self):
-        _, _, Rz = geo.aneurysm_frame([0, 0, 0], [0, 0, 1])
+        _, _, Rz = geo.candidate_frame([0, 0, 0], [0, 0, 1])
         assert geo.slice_normal(Rz, 0) @ geo.slice_normal(Rz, 90) == pytest.approx(0, abs=1e-12)
         assert geo.slice_normal(Rz, 0) @ geo.slice_normal(Rz, 180) == pytest.approx(-1)
 
     def test_a_full_turn_returns_to_the_start(self):
-        _, _, Rz = geo.aneurysm_frame([0, 0, 0], [1, 1, 0])
+        _, _, Rz = geo.candidate_frame([0, 0, 0], [1, 1, 0])
         assert geo.slice_normal(Rz, 30) == pytest.approx(geo.slice_normal(Rz, 390))
 
 
@@ -148,7 +148,7 @@ class TestInPlaneRoll:
         assert negative == pytest.approx(45)
 
     def test_rolling_by_the_result_puts_the_axis_on_slice_y(self):
-        # Rotating the slice axes by -roll must align slice +Y with the aneurysm axis.
+        # Rotating the slice axes by -roll must align slice +Y with the candidate's axis.
         axis = np.array([0.6, 0.8, 0.0])
         slice_x, slice_y = np.array([1.0, 0, 0]), np.array([0, 1.0, 0])
         roll = math.radians(geo.in_plane_roll_deg(slice_x, slice_y, axis))

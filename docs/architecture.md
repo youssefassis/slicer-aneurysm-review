@@ -47,7 +47,7 @@ axis-aligned frame instead (the identity for straight up, a half turn about X fo
 down). Only a zero-length `v` falls back to the identity regardless of direction, so callers
 always get a usable frame.
 
-`geometry.aneurysm_frame(P1, P2)` derives the `(axis, origin, Rz)` triple the rest depends
+`geometry.candidate_frame(P1, P2)` derives the `(axis, origin, Rz)` triple the rest depends
 on. Then, per slider movement:
 
 1. `slice_normal(Rz, angle)` = `Rz.T @ [cos θ, sin θ, 0]`, a unit vector **perpendicular to
@@ -77,7 +77,7 @@ slice behind it.
 Five collections are indexed in lockstep with `self.detections`:
 
 - `self.spheres[i]`, `self.lines[i]` — a `vtkMRMLModelNode` each, per detection
-- `self.confidences`, `self.ostia`, `self.domes` — three single `vtkMRMLMarkupsFiducialNode`s
+- `self.confidences`, `self.bases`, `self.tips` — three single `vtkMRMLMarkupsFiducialNode`s
   whose **Nth control point** belongs to detection *N*
 
 Anything that adds a detection must extend all five (`add_detection_to_scene`), and `reset()`

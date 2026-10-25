@@ -380,21 +380,21 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 d['viewAngle']=value
                 if self.reviewEntry(d):
                     rev.set_view_angle(self.review, d[det.SOURCE_KEY], value)
-            self.reformatLogic.SetSliceNormal(node, geometry.slice_normal(self.aneRz, value))
+            self.reformatLogic.SetSliceNormal(node, geometry.slice_normal(self.candidateRz, value))
             # Read back the slice axes Slicer settled on, then roll in-plane so the
-            # aneurysm stays upright instead of tumbling as the reviewer rotates.
+            # candidate stays upright instead of tumbling as the reviewer rotates.
             m=node.GetSliceToRAS()
             sliceX=np.array(m.MultiplyDoublePoint([1,0,0,0]))[:3]
             sliceY=np.array(m.MultiplyDoublePoint([0,1,0,0]))[:3]
-            self.reformatLogic.RotateSlice(node,2,geometry.in_plane_roll_deg(sliceX,sliceY,self.aneAxis))
-            self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
+            self.reformatLogic.RotateSlice(node,2,geometry.in_plane_roll_deg(sliceX,sliceY,self.candidateAxis))
+            self.reformatLogic.SetSliceOrigin(node, self.candidateOrigin)
 
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeGreen')
         if node is not None:
-            self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
+            self.reformatLogic.SetSliceOrigin(node, self.candidateOrigin)
         node = slicer.mrmlScene.GetNodeByID('vtkMRMLSliceNodeYellow')
         if node is not None:
-            self.reformatLogic.SetSliceOrigin(node, self.aneOrigin)
+            self.reformatLogic.SetSliceOrigin(node, self.candidateOrigin)
 
 
     def set_axial_slice_visibility(self):
@@ -521,7 +521,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return True
 
     def restoreAddedDetections(self):
-        """Put the aneurysms the reviewer added in an earlier session back on the list.
+        """Put the findings the reviewer added in an earlier session back on the list.
 
         They exist only in the review — the detection file is the detector's and is never
         written to — so without this a resumed case silently loses the reviewer's own
@@ -639,7 +639,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         verdict.currentIndexChanged.connect(
             functools.partial(self.onVerdictChanged, key=key, row=idx))
 
-        # Why it is not an aneurysm
+        # Why the candidate was rejected
         reason = qt.QComboBox()
         for label, _ in REASON_CHOICES:
             reason.addItem(label)
@@ -793,9 +793,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         Closing the scene from the File menu removes them while this widget keeps its
         references, and control points added to a node that is no longer in the scene go
-        nowhere: the ostia, domes and confidence labels silently stop appearing.
+        nowhere: the bases, tips and confidence labels silently stop appearing.
         """
-        for attribute, name in (('ostia', 'Base'), ('domes', 'Tip'),
+        for attribute, name in (('bases', 'Base'), ('tips', 'Tip'),
                                 ('confidences', 'Confidences')):
             node = getattr(self, attribute, None)
             if node is None or not slicer.mrmlScene.IsNodePresent(node):
@@ -826,12 +826,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ensureMarkupsNodes()
 
-        # Confidence score label, the ostium and the dome: the Nth control point of each
+        # Confidence score label, the base and the tip: the Nth control point of each
         # belongs to detection N.
         n = self.confidences.AddControlPoint(d['center'])
         self.confidences.SetNthControlPointLabel(n, str(det.confidence_percent(d))+" %")
-        self.ostia.AddControlPoint(d['P1'])
-        self.domes.AddControlPoint(d['P2'])
+        self.bases.AddControlPoint(d['P1'])
+        self.tips.AddControlPoint(d['P2'])
 
     def set_spheres_visibility(self):
         for i in range(len(self.detections)):
@@ -870,25 +870,25 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     i, rendering.is_visible(i, self.selected_detection, self.ui.ConfidenceVisibility.checked))
 
     def set_markups_color(self, color=None):
-        if self.ostia.GetDisplayNode() and self.domes.GetDisplayNode():
+        if self.bases.GetDisplayNode() and self.tips.GetDisplayNode():
             color = rendering.to_rgb(color if color is not None else self.ui.MarkupsColorPicker.color)
-            for markups in (self.ostia, self.domes):
+            for markups in (self.bases, self.tips):
                 markups.GetDisplayNode().SetColor(color)
                 markups.GetDisplayNode().SetSelectedColor(color)
 
     def set_markups_visibility(self):
         for i in range(len(self.detections)):
             value = rendering.is_visible(i, self.selected_detection, self.ui.MarkupsVisibility.checked)
-            self.ostia.SetNthControlPointVisibility(i,value)
-            self.domes.SetNthControlPointVisibility(i,value)
+            self.bases.SetNthControlPointVisibility(i,value)
+            self.tips.SetNthControlPointVisibility(i,value)
 
     def prepare_slices (self):
         if len(self.detections)==0 or self.selected_detection < 0:
-            self.aneAxis,self.aneOrigin,self.aneRz=geometry.default_frame()
+            self.candidateAxis,self.candidateOrigin,self.candidateRz=geometry.default_frame()
             angleValue=0 # need to update slices
         else:
             d=self.detections[self.selected_detection]
-            self.aneAxis,self.aneOrigin,self.aneRz=geometry.aneurysm_frame(d["P1"],d["P2"])
+            self.candidateAxis,self.candidateOrigin,self.candidateRz=geometry.candidate_frame(d["P1"],d["P2"])
             angleValue = d['viewAngle']
 
         self.reformatLogic = slicer.modules.reformat.logic()
@@ -1063,8 +1063,8 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for node in self.lines:
             slicer.mrmlScene.RemoveNode(node)
         self.confidences.RemoveAllControlPoints()
-        self.ostia.RemoveAllControlPoints()
-        self.domes.RemoveAllControlPoints()
+        self.bases.RemoveAllControlPoints()
+        self.tips.RemoveAllControlPoints()
         if self.volNode:
             # The rendering display node and its volume property node outlive the volume, so
             # every load/Clean cycle left a pair of them behind. volProp belongs to the
@@ -1131,7 +1131,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.reset()
         # The three shared markups nodes outlive a case but not the widget: a reload builds a
         # new widget, whose ensureMarkupsNodes would add three more and leave these orphaned.
-        for node in (self.confidences, self.ostia, self.domes):
+        for node in (self.confidences, self.bases, self.tips):
             if node is not None and slicer.mrmlScene.IsNodePresent(node):
                 slicer.mrmlScene.RemoveNode(node)
 
@@ -1210,10 +1210,10 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.reset()
         widget.volNode = self._addTestVolume()
 
-        ostium, dome = [10.0, 0.0, 0.0], [10.0, 0.0, 6.0]
+        base, tip = [10.0, 0.0, 0.0], [10.0, 0.0, 6.0]
         widget.prepareAnnotationNode()
-        widget.tmpMark.AddControlPoint(ostium)
-        widget.tmpMark.AddControlPoint(dome)
+        widget.tmpMark.AddControlPoint(base)
+        widget.tmpMark.AddControlPoint(tip)
         widget.validateAnnotation()
 
         self.assertEqual(len(widget.detections), 1)
@@ -1228,7 +1228,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertEqual(widget.tableWidget.rowCount, 1)
         self.assertEqual(len(widget.spheres), 1)
         self.assertEqual(len(widget.lines), 1)
-        for markups in (widget.ostia, widget.domes, widget.confidences):
+        for markups in (widget.bases, widget.tips, widget.confidences):
             self.assertEqual(markups.GetNumberOfControlPoints(), 1)
         # The temporary placement node and its preview sphere are gone.
         self.assertIsNone(widget.tmpMark)
@@ -1330,7 +1330,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         widget.onRowSelected(0)
         widget.rotateAxisSlider(35)
 
-        # An aneurysm the detector missed, added the way the reviewer adds one.
+        # A finding the detector missed, added the way the reviewer adds one.
         widget.prepareAnnotationNode()
         widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
         widget.tmpMark.AddControlPoint([10.0, 0.0, 6.0])
@@ -1546,12 +1546,12 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # control point per detection in each of the three markups nodes.
         self.assertEqual(len(widget.spheres), len(widget.detections))
         self.assertEqual(len(widget.lines), len(widget.detections))
-        for markups in (widget.ostia, widget.domes, widget.confidences):
+        for markups in (widget.bases, widget.tips, widget.confidences):
             self.assertEqual(markups.GetNumberOfControlPoints(), len(widget.detections))
 
         widget.reset()
         self.assertEqual(widget.spheres, [])
-        self.assertEqual(widget.ostia.GetNumberOfControlPoints(), 0)
+        self.assertEqual(widget.bases.GetNumberOfControlPoints(), 0)
         self.delayDisplay('Passed')
 
     def test_selecting_a_row_aligns_the_red_slice(self):
@@ -1575,13 +1575,13 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
             normal, origin, sliceY = m[:3, 2], m[:3, 3], m[:3, 1]
 
             # The three invariants the reformatting exists for: the slice contains the
-            # aneurysm axis, it passes through the aneurysm, and the axis points along slice
+            # candidate's axis, it passes through the candidate, and the axis points along slice
             # +Y so it stays upright rather than tumbling. Measure the distance to the plane
             # rather than to the point, because Slicer may slide the origin along the normal
             # when it snaps the slice to the voxel grid.
-            self.assertAlmostEqual(float(normal @ widget.aneAxis), 0.0, places=6)
-            self.assertLess(abs(float((widget.aneOrigin - origin) @ normal)), 1.0)
-            self.assertAlmostEqual(float(sliceY @ widget.aneAxis), 1.0, places=3)
+            self.assertAlmostEqual(float(normal @ widget.candidateAxis), 0.0, places=6)
+            self.assertLess(abs(float((widget.candidateOrigin - origin) @ normal)), 1.0)
+            self.assertAlmostEqual(float(sliceY @ widget.candidateAxis), 1.0, places=3)
 
         widget.reset()
         self.delayDisplay('Passed')
@@ -1616,7 +1616,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertIsNone(widget.volProp)
         # Usable again straight away: the three session-long markups nodes are back in the
         # scene, so the next patient's control points have somewhere to go.
-        for markups in (widget.ostia, widget.domes, widget.confidences):
+        for markups in (widget.bases, widget.tips, widget.confidences):
             self.assertTrue(slicer.mrmlScene.IsNodePresent(markups))
             self.assertEqual(markups.GetNumberOfControlPoints(), 0)
         self.delayDisplay('Passed')
