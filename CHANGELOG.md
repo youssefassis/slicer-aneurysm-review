@@ -19,6 +19,13 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- **Every case opened left a volume-rendering ROI in the scene**, the one its rendering nodes
+  came with; Clean removed the rest of them but not that one.
+- Quitting Slicer with a case open raised a traceback, and the view angle of the candidate on
+  screen was not saved: Volume Rendering is unloaded before this module, and closing the case
+  stopped at the first call into it.
+- A volume colour or crop set while one case was open showed in the panel for the next case but
+  not in its render, until it was changed again.
 - **Placing a finding never left place mode**: the next click in a view after the tip — or
   after OK or Cancel — dropped another point, into the finding or into whatever node was
   active. The second point now hands the mouse back to the views.
