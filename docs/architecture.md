@@ -8,11 +8,13 @@ be named after the class it defines.
 ReformatViz/
 ├── ReformatViz.py          Slicer + Qt glue: widget, MRML nodes, signal wiring
 ├── ReformatVizLib/         the Slicer-free core
+│   ├── case.py             which files in a directory make up a case, and what to say if not
 │   ├── detections.py       the detection record: schema, validation, JSON I/O
 │   ├── geometry.py         the reformatting maths, in RAS millimetres
 │   ├── jsonio.py           UTF-8 reads, atomic writes, file digests
 │   ├── rendering.py        colour conversion and the opacity ramp
-│   └── review.py           the review record: verdicts, sign-off, audit trail
+│   ├── review.py           the review record: verdicts, sign-off, audit trail
+│   └── table.py            the review table's choices and when its controls are enabled
 ├── Resources/UI/           the Qt Designer layout
 └── Testing/Python/         build-time test scaffolding
 ```

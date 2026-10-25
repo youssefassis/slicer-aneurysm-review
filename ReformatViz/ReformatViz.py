@@ -12,7 +12,7 @@ import ReformatVizLib
 import slicer
 import vtk
 import vtkmodules
-from ReformatVizLib import case, geometry, jsonio, rendering
+from ReformatVizLib import case, geometry, jsonio, rendering, table
 from ReformatVizLib import detections as det
 from ReformatVizLib import review as rev
 from slicer.ScriptedLoadableModule import *
@@ -38,28 +38,6 @@ SPHERE_RESOLUTION = 32
 TABLE_COLUMNS = ["Confidence (%)", "Diameter (mm)", "Verdict", "Not because", "Likert", "Note"]
 COL_CONFIDENCE, COL_DIAMETER, COL_VERDICT, COL_REASON, COL_LIKERT, COL_NOTE = range(6)
 
-#: The verdict combo: what the reviewer picks, and the state it records. A verdict combo
-#: rather than a checkbox because a checkbox cannot say "not looked at yet", which is the one
-#: thing a triage review must be able to say.
-VERDICT_CHOICES = (
-    ("\u2014", rev.UNREVIEWED),
-    ("Yes", rev.CONFIRMED),
-    ("No", rev.REJECTED),
-    ("Uncertain", rev.UNCERTAIN),
-    ("Not assessable", rev.NOT_ASSESSABLE),
-)
-
-#: The reason combo, enabled only for a rejected candidate.
-REASON_CHOICES = (
-    ("\u2014", None),
-    ("Infundibulum", "infundibulum"),
-    ("Vessel loop", "vessel_loop"),
-    ("Artifact", "artifact"),
-    ("Other pathology", "other_pathology"),
-    ("Duplicate", "duplicate"),
-    ("Other", "other"),
-)
-
 #: Set this to attribute reviews to someone other than the logged-in user, from the Python
 #: console: slicer.app.userSettings().setValue('ReformatViz/Reviewer', 'ykerrien')
 REVIEWER_SETTING = "ReformatViz/Reviewer"
@@ -84,14 +62,6 @@ def now():
     """Return the timestamp to record. UTC, so reviews from two sites can be ordered."""
     # Slicer 5.12 runs Python 3.12, so datetime.UTC is available; requires-python is 3.11.
     return datetime.now(UTC).isoformat()
-
-
-def _choiceIndex(choices, value):
-    """Return the combo index whose recorded value is ``value``, or 0."""
-    for index, (_, choice) in enumerate(choices):
-        if choice == value:
-            return index
-    return 0
 
 
 def createSphere(center, radius):
@@ -641,26 +611,27 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Verdict
         verdict = qt.QComboBox()
-        for label, _ in VERDICT_CHOICES:
+        for label, _ in table.VERDICT_CHOICES:
             verdict.addItem(label)
-        verdict.setCurrentIndex(_choiceIndex(VERDICT_CHOICES, entry.get("state", rev.UNREVIEWED)))
+        state = entry.get("state", rev.UNREVIEWED)
+        verdict.setCurrentIndex(table.choice_index(table.VERDICT_CHOICES, state))
         self.tableWidget.setCellWidget(idx, COL_VERDICT, verdict)
         verdict.currentIndexChanged.connect(functools.partial(self.onVerdictChanged, key=key, row=idx))
 
         # Why the candidate was rejected
         reason = qt.QComboBox()
-        for label, _ in REASON_CHOICES:
+        for label, _ in table.REASON_CHOICES:
             reason.addItem(label)
-        reason.setCurrentIndex(_choiceIndex(REASON_CHOICES, entry.get("reason")))
-        reason.setEnabled(entry.get("state") == rev.REJECTED)
+        reason.setCurrentIndex(table.choice_index(table.REASON_CHOICES, entry.get("reason")))
+        reason.setEnabled(table.reason_enabled(state))
         self.tableWidget.setCellWidget(idx, COL_REASON, reason)
         reason.currentIndexChanged.connect(functools.partial(self.onReasonChanged, key=key, row=idx))
 
         # Likert score
         lv = qt.QComboBox()
-        for i in range(6):
-            lv.addItem("-" if i == det.LIKERT_UNSCORED else str(i))
-        lv.setCurrentIndex(entry.get("likert") or det.LIKERT_UNSCORED)
+        for label, _ in table.LIKERT_CHOICES:
+            lv.addItem(label)
+        lv.setCurrentIndex(table.choice_index(table.LIKERT_CHOICES, entry.get("likert")))
         self.tableWidget.setCellWidget(idx, COL_LIKERT, lv)
         lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key))
 
@@ -672,10 +643,10 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onVerdictChanged(self, index, key, row):
         if self.populatingTable:
             return
-        state = VERDICT_CHOICES[index][1]
+        state = table.VERDICT_CHOICES[index][1]
         reasonCombo = self.tableWidget.cellWidget(row, COL_REASON)
-        reasonCombo.setEnabled(state == rev.REJECTED)
-        reason = REASON_CHOICES[reasonCombo.currentIndex][1] if state == rev.REJECTED else None
+        reasonCombo.setEnabled(table.reason_enabled(state))
+        reason = table.REASON_CHOICES[reasonCombo.currentIndex][1] if state == rev.REJECTED else None
         if not self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), reason)):
             return
         if state != rev.REJECTED and reasonCombo.currentIndex != 0:
@@ -687,13 +658,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onReasonChanged(self, index, key, row):
         if self.populatingTable:
             return
-        state = VERDICT_CHOICES[self.tableWidget.cellWidget(row, COL_VERDICT).currentIndex][1]
-        self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), REASON_CHOICES[index][1]))
+        state = table.VERDICT_CHOICES[self.tableWidget.cellWidget(row, COL_VERDICT).currentIndex][1]
+        reason = table.REASON_CHOICES[index][1]
+        self.applyToReview(functools.partial(rev.set_state, self.review, key, state, now(), reason))
 
     def onLikertChanged(self, index, key):
         if self.populatingTable:
             return
-        score = None if index == det.LIKERT_UNSCORED else index
+        score = table.LIKERT_CHOICES[index][1]
         self.applyToReview(functools.partial(rev.set_likert, self.review, key, score, now()))
 
     def onNoteEdited(self, item):
@@ -740,8 +712,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     widget.setEnabled(editable)
             reason = self.tableWidget.cellWidget(row, COL_REASON)
             if reason:
-                # A reason is only ever offered for a rejected candidate.
-                reason.setEnabled(editable and self._rowIsRejected(row))
+                reason.setEnabled(table.reason_enabled(self._rowState(row), editable))
             note = self.tableWidget.item(row, COL_NOTE)
             if note:
                 if editable:
@@ -749,9 +720,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 else:
                     note.setFlags(note.flags() & ~qt.Qt.ItemIsEditable)
 
-    def _rowIsRejected(self, row):
+    def _rowState(self, row):
         verdict = self.tableWidget.cellWidget(row, COL_VERDICT)
-        return bool(verdict) and VERDICT_CHOICES[verdict.currentIndex][1] == rev.REJECTED
+        return table.VERDICT_CHOICES[verdict.currentIndex][1] if verdict else None
 
     def onRowSelected(self, item):
         self.selected_detection = item.row() if not isinstance(item, int) else item
@@ -1263,7 +1234,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
 
     def _setVerdict(self, widget, row, label):
         """Pick a verdict the way the reviewer does, through the combo's signal."""
-        index = next(i for i, (text, _) in enumerate(VERDICT_CHOICES) if text == label)
+        index = next(i for i, (text, _) in enumerate(table.VERDICT_CHOICES) if text == label)
         widget.tableWidget.cellWidget(row, COL_VERDICT).setCurrentIndex(index)
 
     def test_a_verdict_reaches_the_review_file_without_being_asked_to(self):
@@ -1356,7 +1327,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         # And the table shows what was decided rather than a fresh set of defaults.
         self.assertEqual(
             widget.tableWidget.cellWidget(0, COL_VERDICT).currentIndex,
-            [s for _, s in VERDICT_CHOICES].index(rev.CONFIRMED),
+            [s for _, s in table.VERDICT_CHOICES].index(rev.CONFIRMED),
         )
 
         widget.reset()
