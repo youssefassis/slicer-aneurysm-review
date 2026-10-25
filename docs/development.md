@@ -7,9 +7,9 @@ This is the thing to internalise before anything else.
 |  | Slicer's Python | Your dev Python |
 | --- | --- | --- |
 | Runs | the module, in the GUI | `pytest`, `ruff` |
-| Provides | numpy, VTK, Qt, CTK, `slicer` | whatever `requirements-dev.txt` pins |
+| Provides | numpy, VTK, Qt, CTK, `slicer` | the latest of what `requirements-dev.txt` lists |
 | Managed by | the Slicer installer | you |
-| Verified as | 3.12.10, numpy 2.4.6, VTK 9.6.2 (Slicer 5.12.3) | 3.11, numpy 2.4.6 |
+| Verified as | 3.12.10, numpy 2.4.6, VTK 9.6.2 (Slicer 5.12.3) | Python 3.11 or later |
 
 Slicer's interpreter here is **newer** than a typical dev machine's, not older. Check any
 install with:
@@ -19,8 +19,10 @@ install with:
   "import sys, numpy, vtk; print(sys.version, numpy.__version__, vtk.vtkVersion.GetVTKVersion())"
 ```
 
-`requirements-dev.txt` pins numpy to the same version Slicer ships, so the tests exercise the
-array behaviour the module will actually meet. To check the core against Slicer's own
+`requirements-dev.txt` gives minimum versions, not pins, so the tests run against the newest
+numpy rather than the one Slicer ships. `ReformatVizLib` uses only long-stable numpy
+(`asarray`, `dot`, `linalg.norm`), so the two agree in practice; if a test passes outside
+Slicer and the same logic misbehaves inside it, check the core against Slicer's own
 interpreter rather than yours:
 
 ```bash
@@ -30,7 +32,7 @@ interpreter rather than yours:
 
 You do **not** pip-install into Slicer. Extensions are loaded from disk, and Slicer supplies
 their dependencies. That is why `pyproject.toml` declares no runtime dependencies and no
-build backend — a pin there would describe nothing real. `requirements-dev.txt` is only for
+build backend — a dependency listed there would describe nothing real. `requirements-dev.txt` is only for
 running the tests and linter outside Slicer.
 
 It also means **reproducibility comes from pinning the Slicer version**, not from pinning

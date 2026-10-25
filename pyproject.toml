@@ -21,10 +21,8 @@ license = "Apache-2.0"
 # with `PythonSlicer` and against 3.11 in CI. Revisit if either end moves.
 requires-python = ">=3.11"
 
-# Only needed to run the tests and linter outside Slicer. Inside Slicer, numpy is
-# already provided. Install with:  pip install -r requirements-dev.txt
-[project.optional-dependencies]
-dev = ["numpy", "pytest", "ruff"]
+# The tools for running the tests and linter outside Slicer are listed once, in
+# requirements-dev.txt — not here as well, where the two lists would drift apart.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
