@@ -74,7 +74,8 @@ A file is rejected outright, with a dialog naming the offending entry, if:
 - any `P1`, `P2` or `center` is not three finite numbers — the wrong length, a `null` or
   string coordinate, or one of JSON's non-standard `NaN`/`Infinity` literals, or
 - any `confidence`, `radius` or `viewAngle` present is not a finite number (a `true`/`false`
-  counts as non-numeric here).
+  counts as non-numeric here), or
+- any `added` present is not `0`, `1`, `false` or `true` — the table is ordered on it.
 
 Every entry is checked, not just the first, and values are checked rather than just key
 presence. One bad entry rejects the whole file: silently dropping a candidate would hide it

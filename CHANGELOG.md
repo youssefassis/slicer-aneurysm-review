@@ -19,6 +19,11 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- A detection file whose legacy `added` field held anything but `0`, `1`, `false` or `true`
+  — `"yes"`, say — raised `TypeError` in the Python console while the table was being ordered,
+  instead of the dialog naming the entry. It is now rejected with that dialog, like any other
+  malformed field. Hand-placed detections also record `aneurysm` as `true` rather than `1`,
+  the type every other detection carries.
 - **Opening the module emptied the whole MRML scene**, and cleared the Python console, with no
   prompt and no undo — so it could not be opened alongside anything else, and a Reload during
   development took the scene with it. It now owns the nodes it creates instead of taking the
