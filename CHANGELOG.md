@@ -9,6 +9,8 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
 ### Changed
 
 - **Faster and lighter with many candidates.** With 200 candidates, opening a case takes 0.96 s
