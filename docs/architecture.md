@@ -36,9 +36,9 @@ three and four places respectively, where nothing could reach them.
 
 ## The reformatting
 
-This is what the module exists for. The reviewer needs to see an aneurysm without
-foreshortening, so the slice must **contain the aneurysm axis** (`P1` ostium → `P2` dome),
-and the reviewer spins the view around that axis.
+This is what the module exists for. The reviewer needs to see a candidate without
+foreshortening, so the slice must **contain the candidate's axis** (`P1` base → `P2` tip;
+for an aneurysm, ostium → dome), and the reviewer spins the view around that axis.
 
 `geometry.rotate2Z(v)` returns a rotation whose **third row is the unit `v`** — it maps `v`
 onto +Z, with the first two rows an arbitrary but deterministic orthonormal completion. A
@@ -54,8 +54,8 @@ on. Then, per slider movement:
    the axis** — which is exactly what keeps the axis inside the slice at every angle. This is
    the invariant `tests/test_geometry.py` guards hardest.
 2. Slicer settles the slice orientation; the code reads the resulting slice axes back, and
-   `in_plane_roll_deg` computes the roll that points the aneurysm axis along slice +Y, so the
-   aneurysm stays upright instead of tumbling as the view rotates.
+   `in_plane_roll_deg` computes the roll that points the candidate's axis along slice +Y, so the
+   candidate stays upright instead of tumbling as the view rotates.
 3. All three slice nodes are re-centred on `origin`.
 
 The Red slice also runs slab reconstruction in maximum-intensity-projection mode; the
@@ -100,7 +100,7 @@ through `applyToReview`, which autosaves after every change. The in-memory detec
 review; nothing else about a verdict lives in them any more.
 
 `detection[det.SOURCE_KEY]` is the join between the two: the key the producer filed the
-detection under, and the key its review entry sits at. Aneurysms the reviewer adds exist only
+detection under, and the key its review entry sits at. Findings the reviewer adds exist only
 in the review, under generated `added_<n>` keys, and `restoreAddedDetections()` puts them back
 on `self.detections` when a case is resumed — the detection file is the detector's and is never
 written to.

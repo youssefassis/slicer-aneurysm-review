@@ -5,7 +5,7 @@ project(ReformatViz)
 #-----------------------------------------------------------------------------
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/ReformatViz")
-set(EXTENSION_CATEGORY "Aneurysms")
+set(EXTENSION_CATEGORY "Annotation")
 set(EXTENSION_CONTRIBUTORS "John Doe (AnyWare Corp.)")
 set(EXTENSION_DESCRIPTION "This is an example of a simple extension")
 set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/ReformatViz.png")

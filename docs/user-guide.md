@@ -1,7 +1,8 @@
 # User guide
 
-The module is **Reformat Aneurysm**, under *Aneurysms*. It reviews a list of candidate
-aneurysms one at a time, on a slice view angled so the aneurysm is never foreshortened.
+The module is **Candidate Review**, under *Annotation*. It reviews a list of candidate
+detections — aneurysms on angiography, for instance — one at a time, on a slice view angled so
+the candidate is never foreshortened.
 
 > Screenshots still to be added — `ReformatViz.png` in the repository root is the extension
 > wizard's placeholder icon, not a picture of the module.
@@ -37,9 +38,9 @@ The table lists candidates, most confident first:
 | Column | Meaning |
 | --- | --- |
 | Confidence (%) | The detector's score. Sorts the table |
-| Diameter (mm) | Twice the sphere radius, derived from the ostium–dome separation |
-| Aneurysm ? | Your verdict: **—** (not looked at yet), **Yes**, **No**, **Uncertain** (you want a second opinion), **Not assessable** (the image cannot answer it) |
-| Not because | Why it is not an aneurysm. Only available on a **No** |
+| Diameter (mm) | Twice the sphere radius, derived from the base–tip separation |
+| Verdict | Your verdict: **—** (not looked at yet), **Yes**, **No**, **Uncertain** (you want a second opinion), **Not assessable** (the image cannot answer it) |
+| Not because | Why you rejected it. Only available on a **No** |
 | Likert | Your confidence, 1–5. `-` means not scored |
 | Note | Anything worth recording about this candidate |
 
@@ -51,8 +52,8 @@ line and markups are shown, the slice view reformats onto it, and the 3D camera 
 
 With a row selected:
 
-- **Angle** (−180°…180°, under *Cut planes*) spins the view around the aneurysm axis. The axis stays
-  in the slice plane at every angle, so the aneurysm is never foreshortened, and it stays
+- **Angle** (−180°…180°, under *Cut planes*) spins the view around the candidate's axis. The axis stays
+  in the slice plane at every angle, so the candidate is never foreshortened, and it stays
   upright rather than tumbling as you rotate. Your angle is remembered per candidate and
   saved with it.
 - **Thickness** sets the slab thickness in mm for the maximum-intensity projection on the
@@ -63,11 +64,11 @@ With a row selected:
 verdicts are already on disk, so **Clean** does not discard them — reopening the case brings
 them back.
 
-## Adding a missed aneurysm
+## Adding a missed finding
 
 1. **Add** (under *Detections*) starts placement.
-2. Click the **ostium** (where the aneurysm meets the parent vessel), then the **dome** (its
-   far tip). A sphere previews between them and follows the points while you drag either one.
+2. Click the **base**, then the **tip** — for an aneurysm, the ostium where it meets the
+   parent vessel, then the dome. A sphere previews between them and follows the points while you drag either one.
 3. **OK** commits it — it joins the end of the table, already recorded as **Yes**, since you
    placed it because it is one. **Cancel** discards it.
 
@@ -88,7 +89,7 @@ come back when the case is reopened.
 | Show ROI | Shows the crop box handles so you can adjust it |
 
 **Detections** — independent visibility, colour and opacity for **Spheres**, **Main Axis**
-(the ostium-to-dome line), **Confidence** labels and **Markups** (the ostium/dome points). With a row selected these apply to
+(the base-to-tip line), **Confidence** labels and **Markups** (the base/tip points). With a row selected these apply to
 that candidate only; with nothing selected, to all of them.
 
 Under *Cut planes*, **Visibility** toggles the Red slice in the 3D view.

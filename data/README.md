@@ -19,7 +19,7 @@ sacs are spheres, so nothing about their shape is realistic.
 ## Open it
 
 1. Launch Slicer with the module (see the [README](../README.md)) and go to
-   *Aneurysms → Reformat Aneurysm*.
+   *Annotation → Candidate Review*.
 2. Under *Inputs*, click **Select** and choose `data/sample_case`. The volume and the
    detection file are both picked up from the directory.
 3. Click a row in the table. The Red slice reformats onto that candidate's axis; **Angle**

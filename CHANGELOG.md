@@ -9,6 +9,14 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- **The module is presented for any detector's candidates**, not only aneurysms: it is now
+  **Candidate Review** under the *Annotation* category (was *Reformat Aneurysm* under
+  *Aneurysms*), the verdict column is **Verdict**, and the two points are the **base** and the
+  **tip** (for an aneurysm, the ostium and the dome), including the `Base`/`Tip` markups node
+  names. The detection and review file formats are unchanged.
+
 ### Fixed
 
 - **Opening the module emptied the whole MRML scene**, and cleared the Python console, with no

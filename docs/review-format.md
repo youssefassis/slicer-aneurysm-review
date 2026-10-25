@@ -58,7 +58,7 @@ declining to open it. Any change to the shape below bumps the version and goes i
 ```
 
 `detections` is keyed by **the producer's own keys** from the detection file, so a review
-joins back to the candidates it was made about. Aneurysms the reviewer added by hand live in
+joins back to the candidates it was made about. Findings the reviewer added by hand live in
 the same map under generated `added_<n>` keys, carrying their positions so they can be drawn
 again; a key that already exists is never reused.
 
@@ -71,7 +71,7 @@ Timestamps are ISO 8601 with an offset, in UTC as the module writes them.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `state` | see below | The verdict. **`unreviewed` is a real state** |
-| `reason` | string or `null` | Why it is not an aneurysm. Only ever set on `rejected` |
+| `reason` | string or `null` | Why the candidate was rejected. Only ever set on `rejected` |
 | `likert` | `1`–`5` or `null` | Reviewer's confidence. `null` is not scored — there is no `0` |
 | `note` | string | Free text; `""` when there is none |
 | `viewAngle` | number | Rotation the reviewer left the view at, so the case reopens as they left it |

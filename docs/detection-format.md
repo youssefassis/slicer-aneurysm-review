@@ -37,12 +37,12 @@ a markup point. They are *not* voxel indices.
 
 | Field | Required | Type | Meaning |
 | --- | --- | --- | --- |
-| `P1` | **yes** | `[x, y, z]` | The ostium — where the aneurysm meets the parent vessel |
-| `P2` | **yes** | `[x, y, z]` | The dome — the far tip of the aneurysm |
+| `P1` | **yes** | `[x, y, z]` | The base. For an aneurysm, the ostium, where it meets the parent vessel |
+| `P2` | **yes** | `[x, y, z]` | The tip. For an aneurysm, the dome |
 | `confidence` | no | number `0`–`1` | Detector score. Displayed as a percentage; sorts the table. Defaults to `1` |
 | `center` | no | `[x, y, z]` | Sphere centre. Defaults to the midpoint of `P1`/`P2` |
 | `radius` | no | number (mm) | Sphere radius. Defaults to half the `P1`–`P2` distance |
-| `viewAngle` | no | number (degrees) | Legacy: a rotation about the aneurysm axis, `-180`–`180`. Defaults to `0` |
+| `viewAngle` | no | number (degrees) | Legacy: a rotation about the candidate's axis, `-180`–`180`. Defaults to `0` |
 | `aneurysm` | no | boolean | Legacy: a verdict. Defaults to `false`. See *The reviewer's fields* |
 | `Likert` | no | integer `1`–`5` | Legacy: a confidence score |
 | `added` | no | `1` | Legacy: marked a detection the reviewer added by hand |
@@ -97,7 +97,7 @@ when. A file that still carries them is loaded without complaint and they are ig
 ## Ordering
 
 Detections are sorted by `confidence` descending on load, and the table and the Nth control
-point of the `Ostium`/`Dome`/`Confidences` markups nodes follow that same order.
+point of the `Base`/`Tip`/`Confidences` markups nodes follow that same order.
 
 Detections the reviewer adds go to the end of the table regardless of confidence. They carry
 `confidence` 1 only because there is no detector score to record for them — which is also why
