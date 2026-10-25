@@ -9,6 +9,31 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- The module wrote its review into the same directory it picks the detection file from, and
+  picked that file as the first `*.json` in sorted order — so a case whose detection file
+  sorted after `review_` was opened against the module's own output and then refused. Review
+  files are no longer offered as detections.
+- Choosing a directory with no volume did nothing at all: no dialog, no message, nothing to
+  distinguish it from a broken module. It now says what a case directory has to contain, and a
+  directory holding a volume but no detection file says that the volume loaded, that there is
+  nothing to review, and that nothing is being recorded.
+- Typing a note against an aneurysm placed by hand with no case open raised `KeyError` in the
+  Python console instead of being quietly dropped, because such a detection has no review to
+  be recorded in.
+- A case signed off in an earlier session came back from disk with its verdict, reason, Likert
+  and note controls still editable; changing one produced an error dialog rather than the
+  control being disabled. The table is now locked as it is filled.
+- The view angle a reviewer left the last inspected candidate at was lost on **Clean**, on
+  closing the scene and on loading the next case, because it reaches the disk when a row is
+  left and nothing left the last one.
+- Recolouring the volume raised `AttributeError` when the volume had outlived its
+  volume-rendering nodes, the one call site of several here that did not check.
+- The module hid the application's data probe for the rest of the session, including after the
+  reviewer switched to another module; it is now restored on the way out, and left alone if
+  the reviewer had already collapsed it.
+
 ## [0.1.0] - 2026-09-20
 
 ### Added
@@ -48,28 +73,6 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
-- The module wrote its review into the same directory it picks the detection file from, and
-  picked that file as the first `*.json` in sorted order — so a case whose detection file
-  sorted after `review_` was opened against the module's own output and then refused. Review
-  files are no longer offered as detections.
-- Choosing a directory with no volume did nothing at all: no dialog, no message, nothing to
-  distinguish it from a broken module. It now says what a case directory has to contain, and a
-  directory holding a volume but no detection file says that the volume loaded, that there is
-  nothing to review, and that nothing is being recorded.
-- Typing a note against an aneurysm placed by hand with no case open raised `KeyError` in the
-  Python console instead of being quietly dropped, because such a detection has no review to
-  be recorded in.
-- A case signed off in an earlier session came back from disk with its verdict, reason, Likert
-  and note controls still editable; changing one produced an error dialog rather than the
-  control being disabled. The table is now locked as it is filled.
-- The view angle a reviewer left the last inspected candidate at was lost on **Clean**, on
-  closing the scene and on loading the next case, because it reaches the disk when a row is
-  left and nothing left the last one.
-- Recolouring the volume raised `AttributeError` when the volume had outlived its
-  volume-rendering nodes, the one call site of several here that did not check.
-- The module hid the application's data probe for the rest of the session, including after the
-  reviewer switched to another module; it is now restored on the way out, and left alone if
-  the reviewer had already collapsed it.
 - The crop ROI was sized from the volume's corner-to-corner diagonal and centred on the world
   origin, so any tilted or off-centre volume was silently clipped: a 20° gantry tilt lost half
   the field of view, and a 45° rotation collapsed the ROI to zero width.
