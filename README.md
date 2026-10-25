@@ -1,73 +1,55 @@
 # ReformatViz — candidate review for 3D Slicer
 
 > Mirrored from the original repository at
-> [gitlab.inria.fr/yassis/slicer-reformat-aneurysm](https://gitlab.inria.fr/yassis/slicer-reformat-aneurysm).
+> [gitlab.inria.fr/yassis/slicer-reformat-aneurysm](https://gitlab.inria.fr/yassis/slicer-reformat-aneurysm),
+> developed at the [Loria](https://www.loria.fr/) lab.
 
 A [3D Slicer](https://www.slicer.org/) extension for reviewing a detector's candidates — such
-as intracranial aneurysms on head angiography. Given a volume and a JSON file of candidate
-detections, it reformats the slice view so it **always contains the candidate's axis** — the
-reviewer spins the view around that axis instead of hunting for an oblique plane by hand — and
-records a verdict, a Likert score, and any finding the detector missed.
+as intracranial aneurysms on head angiography — one at a time.
 
-The module appears in Slicer as **Candidate Review**, under the *Annotation* category. It is
-developed against **Slicer 5.12.3** and drives only modules that ship with Slicer, so there
-are no extension dependencies.
+**The slice view always contains the candidate's axis.** You spin the view around that axis
+instead of hunting for an oblique plane by hand, then record a verdict, and add anything the
+detector missed.
 
 ## Install
 
-Plain Python — no build step.
+Developed against **3D Slicer 5.12.3**. Nothing else: Slicer supplies everything the module
+uses.
 
 ```bash
-# macOS; adjust for your Slicer install
-/Applications/Slicer.app/Contents/MacOS/Slicer --additional-module-paths ReformatViz
+git clone https://github.com/youssefassis/slicer-aneurysm-review.git
 ```
 
-To install it permanently instead: *Edit → Application Settings → Modules*, add the inner
-`ReformatViz/` directory (the one containing `ReformatViz.py`) to **Additional module paths**,
-then restart Slicer.
+In Slicer, open *Edit → Application Settings → Modules*, add the inner `ReformatViz/`
+directory (the one containing `ReformatViz.py`) to **Additional module paths**, and restart.
+The module appears as **Candidate Review**, under *Annotation*.
 
-## Try it
+## Quick start
 
-`data/sample_case/` is a synthetic phantom angiogram with five candidates, three of them real,
-so the module can be exercised without a patient volume to hand. Point *Inputs → Select* at
-that directory; [`data/README.md`](data/README.md) says which candidates are the real ones.
-
-## Use
-
-1. **Select** a case directory. The first `*.nii.gz` in it is loaded as the volume and the
-   first `*.json` that is not a review file as the detections. Anything else already in the
-   scene is left alone.
-2. Click a row in the table to review that candidate. The slice view reformats onto its axis;
-   **Angle** spins the view around it, **Thickness** sets the slab thickness for the
-   maximum-intensity projection.
+1. **Select** a case directory holding one `*.nii.gz` volume and one detection `*.json`.
+2. Click a row to review that candidate. **Angle** spins the view around its axis.
 3. Record a verdict — **Yes**, **No** (with a reason), **Uncertain** or **Not assessable** —
-   plus a **Likert** score and a note. **Add** places two points (base, then tip) to record
-   a finding the detector missed.
-4. **Sign off** once every candidate has been decided. Nothing needs saving: the review is
-   written to `review_<reviewer>.json` beside the case as you work, and resumed when you open
-   the case again.
+   with an optional Likert score and note. **Add** places two points (base, then tip) for a
+   finding the detector missed.
+4. **Sign off** once every candidate is decided. There is nothing to save: the review is
+   written to `review_<reviewer>.json` beside the case as you work.
+
+No data to try it on? A synthetic sample case ships in [`data/`](data/README.md).
+
+## Features
+
+- Oblique, maximum-intensity-projection slab around each candidate's axis.
+- An autosaved review per reviewer, resumed when the case is reopened.
+- Rejection reasons, Likert scores and notes per candidate; your own additions kept apart.
+- Sign-off with provenance and an append-only audit trail, for validation studies.
+- Never writes to the detection file, and leaves the rest of your scene alone.
 
 ## Documentation
 
-| | |
-| --- | --- |
-| [user guide](docs/user-guide.md) | what every control does, in the reviewer's terms |
-| [detection format](docs/detection-format.md) | the JSON the module reads — read this if you generate detection files |
-| [review format](docs/review-format.md) | the JSON the module writes: verdicts, sign-off, audit trail |
-| [architecture](docs/architecture.md) | how the code is split, the reformatting maths |
-| [development](docs/development.md) | the two Python environments, test loop, open decisions |
-
-## Develop
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest      # the Slicer-free core: ~260 tests, well under a second
-ruff check .          # lint, and the Slicer-free import boundary
-```
-
-Most of the code is testable without launching Slicer: `ReformatViz/ReformatVizLib/` holds the
-geometry, the detection file format and the display maths, and may not import `slicer`, `vtk`
-or `qt`; `ReformatViz/ReformatViz.py` holds the Slicer and Qt glue.
+- [User guide](docs/user-guide.md) — every control, in the reviewer's terms.
+- [Detection format](docs/detection-format.md) — the JSON the module reads, for detector authors.
+- [Review format](docs/review-format.md) — the JSON the module writes.
+- [Development](docs/development.md) — running the tests and contributing.
 
 ## Credits
 
