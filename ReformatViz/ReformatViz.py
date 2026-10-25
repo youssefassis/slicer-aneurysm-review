@@ -1,5 +1,6 @@
 import functools
 import getpass
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -565,6 +566,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def updateProgress(self):
         """Show how much of the case is decided, next to the table it refers to."""
+        self.updateAnnotationButtons()
         if not self.review:
             self.ui.CollapsibleButton.text = self.reviewSectionTitle
             self.ui.signOffButton.text = "Sign off"
@@ -572,6 +574,18 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CollapsibleButton.text = f"{self.reviewSectionTitle} \u2014 {rev.describe_progress(self.review)}"
         signedOff = self.review["review"]["state"] == rev.SIGNED_OFF
         self.ui.signOffButton.text = "Reopen" if signedOff else "Sign off"
+
+    def reviewIsEditable(self):
+        """False only while a signed-off case is open; with no case there is nothing to lock."""
+        return not self.review or self.review["review"]["state"] != rev.SIGNED_OFF
+
+    def updateAnnotationButtons(self):
+        """Offer Add when nothing is being placed and the case accepts findings; OK and
+        Cancel only while something is."""
+        placing = self.tmpMark is not None
+        self.ui.addButton.setEnabled(not placing and self.reviewIsEditable())
+        self.ui.okButton.setEnabled(placing)
+        self.ui.cancelButton.setEnabled(placing)
 
     def fillReviewTable(self):
         """Show the open review: one row per detection, locked if the case is finished.
@@ -718,16 +732,25 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if self.review["review"]["state"] == rev.SIGNED_OFF:
             reason = qt.QInputDialog.getText(None, "Reopen this case", "Why is the review being amended?")
-            if not reason:
-                return
-            if self.applyToReview(functools.partial(rev.reopen, self.review, now(), reason)):
-                self.setReviewEditable(True)
+            if reason:
+                self.reopenCase(reason)
             return
 
         if not self.applyToReview(functools.partial(rev.sign_off, self.review, now())):
             return
         self.setReviewEditable(False)
         slicer.util.infoDisplay(f"Case signed off by {self.review['review']['reviewer']}.")
+
+    def reopenCase(self, reason):
+        """Reopen a signed-off case for amendment, recording ``reason``."""
+        if not self.applyToReview(functools.partial(rev.reopen, self.review, now(), reason)):
+            return
+        # Candidates the detection file gained while the case was signed off could not enter
+        # the review then; without this they stay rows that refuse every verdict.
+        if rev.add_candidates(self.review, [d[det.SOURCE_KEY] for d in self.detections]):
+            self.saveReview()
+            self.updateProgress()
+        self.setReviewEditable(True)
 
     def setReviewEditable(self, editable):
         """Lock the verdicts of a signed-off case, or unlock them after a reopen."""
@@ -984,9 +1007,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.modules.markups.logic().SetActiveList(self.tmpMark)
         slicer.modules.markups.logic().StartPlaceMode(1)
 
-        self.ui.addButton.setEnabled(False)
-        self.ui.okButton.setEnabled(True)
-        self.ui.cancelButton.setEnabled(True)
+        self.updateAnnotationButtons()
 
     def removeAnnotationNodes(self, caller=None, event=None):
         if self.tmpMark:
@@ -998,9 +1019,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tmpSphere: slicer.vtkMRMLModelNode = None
         self.tmpSphereSource: slicer.vtkSphereSource = None
 
-        self.ui.addButton.setEnabled(True)
-        self.ui.okButton.setEnabled(False)
-        self.ui.cancelButton.setEnabled(False)
+        self.updateAnnotationButtons()
 
     def validateAnnotation(self):
         markups = self.tmpMark
@@ -1010,6 +1029,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.util.warningDisplay(
                 "Place two points — the base, then the tip — before pressing OK, or press Cancel to start over."
             )
+            return
+
+        if not self.reviewIsEditable():
+            # Signed off while the points were being placed. Refused before anything is
+            # removed, so the points survive a reopen instead of being lost to the error.
+            slicer.util.warningDisplay("The case is signed off. Reopen it to add a finding, or press Cancel.")
             return
 
         p1, p2 = np.empty(3), np.empty(3)
@@ -1031,9 +1056,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection, 0))
         self.onRowSelected(self.selected_detection)
         self.updateObjectsDisplay()
-        self.ui.addButton.setEnabled(True)
-        self.ui.okButton.setEnabled(False)
-        self.ui.cancelButton.setEnabled(False)
+        self.updateAnnotationButtons()
 
     def drawAnnotationSpheres(self, caller=None, event=None):
         markups: slicer.vtkMRMLMarkupsFiducialNode = caller
@@ -1191,6 +1214,8 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_locking_the_table_records_no_notes()
         self.test_the_arrow_keys_move_the_view_with_the_highlight()
         self.test_a_refused_verdict_is_not_left_on_screen()
+        self.test_a_signed_off_case_takes_no_new_finding()
+        self.test_reopening_takes_in_candidates_added_since_sign_off()
         self.test_the_last_view_angle_survives_clean()
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
@@ -1476,6 +1501,61 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertEqual(widget.tableWidget.cellWidget(0, COL_VERDICT).currentIndex, 0)
         widget.tableWidget.cellWidget(0, COL_LIKERT).setCurrentIndex(3)
         self.assertEqual(widget.tableWidget.cellWidget(0, COL_LIKERT).currentIndex, 0)
+
+        widget.reset()
+        self.delayDisplay("Passed")
+
+    def _signOffAll(self, widget):
+        for row in range(widget.tableWidget.rowCount):
+            self._setVerdict(widget, row, "Yes")
+        widget.onSignOff()
+        self.assertEqual(widget.review["review"]["state"], rev.SIGNED_OFF)
+
+    def test_a_signed_off_case_takes_no_new_finding(self):
+        self.delayDisplay("A finding cannot be added to a signed-off case, and placed points survive")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        # Points being placed when the case is signed off.
+        widget.addAnnotationNode()
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 6.0])
+        self._signOffAll(widget)
+
+        widget.validateAnnotation()  # refused, without losing the points
+        self.assertEqual(len(widget.detections), 3)
+        self.assertIsNotNone(widget.tmpMark)
+        self.assertEqual(widget.tmpMark.GetNumberOfControlPoints(), 2)
+
+        widget.removeAnnotationNodes()
+        self.assertFalse(widget.ui.addButton.enabled)
+        # Clean leaves no case to lock, so Add is offered again.
+        widget.reset()
+        self.assertTrue(widget.ui.addButton.enabled)
+        self.delayDisplay("Passed")
+
+    def test_reopening_takes_in_candidates_added_since_sign_off(self):
+        self.delayDisplay("A candidate the detector added after sign-off can be decided after a reopen")
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+        self._signOffAll(widget)
+        widget.reset()
+
+        detectionFile = directory / "detections.json"
+        detections = json.loads(detectionFile.read_text())
+        detections["late_one"] = {"P1": [0.0, 0.0, 0.0], "P2": [0.0, 0.0, 4.0], "confidence": 0.01}
+        detectionFile.write_text(json.dumps(detections))
+        self._openCase(widget, directory)
+        row = next(i for i, d in enumerate(widget.detections) if d[det.SOURCE_KEY] == "late_one")
+
+        widget.reopenCase("the detector was rerun")
+        self.assertEqual(rev.entry(widget.review, "late_one")["state"], rev.UNREVIEWED)
+        self._setVerdict(widget, row, "No")
+        self.assertEqual(rev.entry(rev.load(self._reviewFile(directory)), "late_one")["state"], rev.REJECTED)
 
         widget.reset()
         self.delayDisplay("Passed")
