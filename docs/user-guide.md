@@ -21,8 +21,9 @@ Opening a case also opens its **review** — `review_<your name>.json`, written 
 directory. If one is already there it is resumed, so a case can be left and picked up later.
 Nothing you do is written into the detection file; that stays the detector's.
 
-**Opening the module clears the whole Slicer scene**, and so does loading a case. You do not
-need to save: every verdict is written to the review as you make it.
+Opening the module leaves the rest of the Slicer scene alone; loading a case replaces only the
+previous case's volume and markups. You do not need to save: every verdict is written to the
+review as you make it.
 
 To practise on something first, select `data/sample_case/` in the repository: a synthetic case
 with five candidates, three of which are aneurysms. Which three, and what each of the others
