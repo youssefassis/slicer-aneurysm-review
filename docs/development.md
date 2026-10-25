@@ -96,7 +96,7 @@ The Python console (*View → Python Console*) is the fastest way to poke at liv
 ```python
 w = slicer.modules.ReformatVizWidget
 len(w.detections), w.selected_detection
-w.aneAxis, w.aneOrigin
+w.candidateAxis, w.candidateOrigin
 ```
 
 ### The in-Slicer test

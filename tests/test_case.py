@@ -84,7 +84,7 @@ class TestDescriptions:
         assert "loaded" in message
 
     def test_no_detections_warns_that_nothing_is_recorded(self, tmp_path):
-        # Without a detection file there is no review, so a hand-placed aneurysm is lost on
+        # Without a detection file there is no review, so a hand-placed finding is lost on
         # the next load. Saying so is the whole point of warning rather than staying quiet.
         assert "not be saved" in case.describe_no_detections(tmp_path)
 

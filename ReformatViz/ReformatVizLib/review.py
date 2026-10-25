@@ -29,9 +29,9 @@ FORMAT_VERSION = 1
 
 #: The reviewer has not decided about this candidate yet. Blocks sign-off.
 UNREVIEWED = "unreviewed"
-#: It is an aneurysm.
+#: It is a true finding.
 CONFIRMED = "confirmed"
-#: It is not an aneurysm; ``reason`` says what it is instead.
+#: It is not one; ``reason`` says what it is instead.
 REJECTED = "rejected"
 #: The reviewer cannot call it either way and wants a second opinion.
 UNCERTAIN = "uncertain"
@@ -190,7 +190,7 @@ def set_view_angle(review, key, angle):
 
 
 def add_detection(review, p1, p2, at, key=None):
-    """Add an aneurysm the detector missed, and return its key.
+    """Add a finding the detector missed, and return its key.
 
     It starts :data:`CONFIRMED`: the reviewer placed it precisely because it is one, and
     leaving it undecided would block sign-off on the reviewer's own finding.

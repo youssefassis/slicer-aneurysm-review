@@ -52,7 +52,7 @@ class TestNew:
 class TestUndecidedIsAState:
     def test_a_rejected_candidate_is_not_the_same_as_an_unopened_one(self):
         # The defect this module exists to fix: with a plain boolean verdict, "I looked and
-        # it is not an aneurysm" and "I never opened it" were the same saved record.
+        # it is not one" and "I never opened it" were the same saved record.
         r = blank()
         review.set_state(r, "c0", review.REJECTED, LATER, reason="infundibulum")
         assert review.entry(r, "c0")["state"] == review.REJECTED
@@ -163,7 +163,7 @@ class TestViewAngle:
 
 
 class TestAddDetection:
-    def test_an_aneurysm_the_detector_missed_starts_confirmed(self):
+    def test_a_finding_the_detector_missed_starts_confirmed(self):
         # The reviewer placed it because it is one; leaving it undecided would block sign-off
         # on their own finding.
         r = blank()

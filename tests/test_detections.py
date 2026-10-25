@@ -182,7 +182,7 @@ class TestLoad:
 
     def test_a_file_holding_the_nan_literal_is_rejected(self, tmp_path):
         # json.load accepts the non-standard NaN and Infinity literals, and a NaN axis then
-        # slips through aneurysm_frame as a "coincident points" fallback with a NaN origin.
+        # slips through candidate_frame as a "coincident points" fallback with a NaN origin.
         path = write(tmp_path, '{"a": {"P1": [NaN, 0, 0], "P2": [1, 0, 0]}}')
         with pytest.raises(det.DetectionFormatError, match="malformed P1"):
             det.load(path)
