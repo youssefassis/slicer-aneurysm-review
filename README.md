@@ -11,6 +11,8 @@ as intracranial aneurysms on head angiography — one at a time.
 instead of hunting for an oblique plane by hand, then record a verdict, and add anything the
 detector missed.
 
+<img width=100% src="docs/module-panel.jpg" alt="Reviewing the first candidate of the sample case: the Red slice contains its axis">
+
 ## Install
 
 Developed against **3D Slicer 5.12.3**. Nothing else: Slicer supplies everything the module

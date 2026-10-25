@@ -4,8 +4,7 @@ The module is **Candidate Review**, under *Annotation*. It reviews a list of can
 detections — aneurysms on angiography, for instance — one at a time, on a slice view angled so
 the candidate is never foreshortened.
 
-> Screenshots still to be added — `ReformatViz.png` in the repository root is the extension
-> wizard's placeholder icon, not a picture of the module.
+![The module reviewing the first candidate of the sample case](module-panel.jpg)
 
 ## Loading a case
 
