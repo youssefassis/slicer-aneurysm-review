@@ -11,6 +11,12 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- **Opening the module emptied the whole MRML scene**, and cleared the Python console, with no
+  prompt and no undo — so it could not be opened alongside anything else, and a Reload during
+  development took the scene with it. It now owns the nodes it creates instead of taking the
+  first node of a class it finds, which is what the wipe was compensating for: the volume is
+  the one `loadVolume` returned, the crop ROI is the one the module added, **Clean** no longer
+  removes ROIs belonging to anything else, and closing the module removes only its own nodes.
 - The module wrote its review into the same directory it picks the detection file from, and
   picked that file as the first `*.json` in sorted order — so a case whose detection file
   sorted after `review_` was opened against the module's own output and then refused. Review

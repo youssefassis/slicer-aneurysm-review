@@ -86,7 +86,8 @@ deterministically from the constants at the top of that file — change the anat
 it, and commit both files together, because `tests/test_sample_data.py` compares them.
 
 Then iterate without restarting: open the module, use the **Reload** button in *Developer
-Tools*, or `Ctrl+R` / `Cmd+R`. Note that reloading re-runs `__init__`, which clears the scene.
+Tools*, or `Ctrl+R` / `Cmd+R`. Reloading destroys the widget, so `cleanup()` removes the nodes
+this module put in the scene — the case you were looking at goes with it, anything else stays.
 
 The Python console (*View → Python Console*) is the fastest way to poke at live state:
 

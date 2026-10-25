@@ -122,9 +122,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed to observe the scene being closed
 
-        slicer.app.pythonConsole().clear()
-        self.clearScene()
-
     def setup(self):
         """
         Called when the user opens the module the first time and the widget is initialized.
@@ -246,6 +243,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
         self.volProp : vtkmodules.vtkRenderingCore.vtkVolumeProperty=None
+        self.roiNode : slicer.vtkMRMLMarkupsROINode = None
         self.scalarOpacity=makeScalarOpacity()
 
         # The review of the case on screen, and where it is written. None means no case is
@@ -314,16 +312,37 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onVolumeOpacityChanged(self,value):
         self.updateScalarOpacity()
 
+    def currentRoiNode(self):
+        """Return the module's crop ROI if it is in the scene, else None.
+
+        Held as a reference rather than looked up by class: the first ROI in the scene is not
+        necessarily this module's, and a scene closed from the File menu takes ours with it
+        while the widget keeps pointing at it.
+        """
+        if self.roiNode is not None and slicer.mrmlScene.IsNodePresent(self.roiNode):
+            return self.roiNode
+        self.roiNode = None
+        return None
+
+    def ensureRoiNode(self):
+        """Return the crop ROI, creating it the first time and after a scene close."""
+        roiNode = self.currentRoiNode()
+        if roiNode is None:
+            roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode")
+            roiNode.SetName('')  # undisplay ROI name
+            roiNode.GetDisplayNode().SetOpacity(0.05)
+            roiNode.GetDisplayNode().SetVisibility(True)
+            self.roiNode = roiNode
+        return roiNode
+
     def onCropVisibilityChanged(self):
-        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
-        if len(roiNode) > 0:
-            roiNode=roiNode[0]
+        roiNode = self.currentRoiNode()
+        if roiNode:
             roiNode.GetDisplayNode().SetVisibility(self.ui.cropVisBox.checked)
 
     def onCropChanged(self):
-        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
         if (not self.ui.cropBox.checked) or (not self.volNode):
-            if len(roiNode)>0:
+            if self.currentRoiNode():
                 self.ui.cropVisBox.setChecked(False)
                 # This branch is also the "no volume loaded" one, and the lookup needs a
                 # volume node to search from.
@@ -333,16 +352,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         displayNode.SetCroppingEnabled(0)
         else:
             self.ui.cropVisBox.setChecked(True)
-            # print("turn on ROI")
-            if len(roiNode) == 0:
-                # First time? then Create
-                roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode")
-
-                roiNode.GetDisplayNode().SetOpacity(0.05)
-                roiNode.GetDisplayNode().SetVisibility(True)
-            else:
-                roiNode = roiNode[0]
-            roiNode.SetName('') # undisplay ROI name
+            roiNode = self.ensureRoiNode()
             if self.selected_detection >= 0:
                 position_RAS = self.detections[self.selected_detection]['center']
                 radius = [self.detections[self.selected_detection]['radius']*4 ] * 3
@@ -404,12 +414,17 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def load_files(self):
         # save before loading
         dir_path = qt.QFileDialog().getExistingDirectory()
-        if not dir_path:
-            return
+        if dir_path:
+            self.openCase(Path(dir_path))
 
+    def openCase(self, directory):
+        """Open the case in ``directory``: its volume, its detections and its review.
+
+        Separate from `load_files` so the whole path can be exercised without the directory
+        dialog, which a test cannot open.
+        """
         # Which files make up a case is decided in ReformatVizLib, where it can be tested;
         # the review the module itself writes into this directory is not one of them.
-        directory = Path(dir_path)
         volumePath, detectionPath = case.find_files(directory)
         if volumePath is None:
             # Otherwise choosing the wrong folder is silent, which looks like a broken module.
@@ -1062,9 +1077,9 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 if propertyNode:
                     slicer.mrmlScene.RemoveNode(propertyNode)
             slicer.mrmlScene.RemoveNode(self.volNode)
-        roiNode = slicer.util.getNodesByClass("vtkMRMLMarkupsROINode")
-        for r in roiNode:
-            slicer.mrmlScene.RemoveNode(r)
+        # Ours only. Removing every ROI in the scene took the reviewer's own along with it.
+        if self.currentRoiNode():
+            slicer.mrmlScene.RemoveNode(self.roiNode)
 
         self.removeAnnotationNodes()
 
@@ -1088,6 +1103,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.detections=[]
         self.volNode : slicer.vtkMRMLScalarVolumeNode = None
         self.volProp = None
+        self.roiNode = None
 
         # The review file itself stays on disk: it is the record of what was decided, and
         # Clean means "clear the screen", not "unsay it".
@@ -1102,22 +1118,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateProgress()
         self.onRowSelected(-1)
 
-    def clearScene(self):
-        """
-        Empty the scene. This module assumes it is the only owner of the scene:
-        load_files and onCropChanged look nodes up by class and take the first
-        match, so data left by another module would be picked up by mistake.
-        """
-        slicer.mrmlScene.Clear(0)
-
     def cleanup(self):
         """
         Called when the application closes and the module widget is destroyed.
         """
-        # Before clearing, so that onSceneEndClose does not run against a widget that is on
-        # its way out.
+        # Before removing anything, so that onSceneEndClose does not run against a widget
+        # that is on its way out.
         self.removeObservers()
-        self.clearScene()
+        # Only what this module put in the scene. Emptying the whole scene here would take
+        # the reviewer's other data with it every time the module was reloaded, and reset()
+        # writes the review out on the way past.
+        self.reset()
+        # The three shared markups nodes outlive a case but not the widget: a reload builds a
+        # new widget, whose ensureMarkupsNodes would add three more and leave these orphaned.
+        for node in (self.confidences, self.ostia, self.domes):
+            if node is not None and slicer.mrmlScene.IsNodePresent(node):
+                slicer.mrmlScene.RemoveNode(node)
 
     def onSceneEndClose(self, caller, event):
         """
@@ -1161,6 +1177,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
         self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
         self.test_the_data_probe_is_hidden_while_the_module_is_open()
+        self.test_a_case_opens_without_disturbing_the_rest_of_the_scene()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -1467,6 +1484,42 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertFalse(probe.visible)
 
         widget.enter()
+        self.delayDisplay('Passed')
+
+    def test_a_case_opens_without_disturbing_the_rest_of_the_scene(self):
+        self.delayDisplay('Another module\'s volume and ROI survive a case being opened')
+        widget = self._widget()
+        widget.reset()
+
+        # Somebody else's data, of exactly the two classes this module used to adopt by
+        # taking the first node of a class it found.
+        foreignVolume = self._addTestVolume()
+        foreignVolume.SetName('ForeignVolume')
+        foreignRoi = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsROINode', 'ForeignROI')
+
+        directory = self._buildCase()
+        widget.openCase(directory)
+
+        # The case's own volume, not whichever one was already in the scene.
+        self.assertIsNotNone(widget.volNode)
+        self.assertNotEqual(widget.volNode.GetID(), foreignVolume.GetID())
+        self.assertEqual(len(widget.detections), 3)
+
+        # Cropping makes the module its own ROI rather than seizing the one already there.
+        widget.ui.cropBox.checked = True
+        widget.onCropChanged()
+        self.assertIsNotNone(widget.currentRoiNode())
+        self.assertNotEqual(widget.roiNode.GetID(), foreignRoi.GetID())
+
+        widget.reset()
+        self.assertTrue(slicer.mrmlScene.IsNodePresent(foreignVolume))
+        self.assertTrue(slicer.mrmlScene.IsNodePresent(foreignRoi))
+        # ...and the module's own ROI did go.
+        self.assertIsNone(widget.currentRoiNode())
+
+        widget.ui.cropBox.checked = False
+        slicer.mrmlScene.RemoveNode(foreignVolume)
+        slicer.mrmlScene.RemoveNode(foreignRoi)
         self.delayDisplay('Passed')
 
     def test_module_loads(self):
