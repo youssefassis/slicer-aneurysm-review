@@ -12,8 +12,8 @@ import ReformatVizLib
 import slicer
 import vtk
 import vtkmodules
+from ReformatVizLib import case, geometry, jsonio, rendering
 from ReformatVizLib import detections as det
-from ReformatVizLib import geometry, jsonio, rendering
 from ReformatVizLib import review as rev
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
@@ -108,7 +108,7 @@ def createModel(model, name):
 class ReformatViz(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = "Reformat Aneurysm"  # TODO: make this more human readable by adding spaces
+        self.parent.title = "Reformat Aneurysm"
         self.parent.categories = ["Aneurysms"]
         self.parent.dependencies = []
         self.parent.contributors = ["Youssef Assis and Erwan Kerrien (Loria lab.)"]
@@ -130,7 +130,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Called when the user opens the module the first time and the widget is initialized.
         """
         ScriptedLoadableModuleWidget.setup(self)
-        slicer.util.findChild(slicer.util.mainWindow(), "DataProbeCollapsibleWidget").setVisible(False)
 
         # Load widget from .ui file (created by Qt Designer).
         # Additional widgets can be instantiated manually and added to self.layout.
@@ -149,6 +148,44 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Last, so that a scene closed from the File menu can never land on a half-built
         # widget: the handler reads self.detections and the table.
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
+    def enter(self):
+        """Called when the reviewer switches to this module.
+
+        No call up to `ScriptedLoadableModuleWidget`: it does not define `enter`/`exit`, and
+        Slicer swallows the resulting AttributeError while switching modules, so everything
+        after such a call would silently never run.
+        """
+        probe = self.dataProbeWidget()
+        if probe:
+            # Remembered rather than assumed: hiding it is this module's doing, and a
+            # reviewer who had already collapsed it should not find it reopened on the way
+            # out.
+            self.dataProbeWasVisible = probe.visible
+            probe.setVisible(False)
+
+    def exit(self):
+        """Called when the reviewer switches away to another module. See `enter`."""
+        probe = self.dataProbeWidget()
+        if probe:
+            probe.setVisible(self.dataProbeWasVisible)
+
+    def dataProbeWidget(self):
+        """Return the application's data probe, or None when there is not one to hide.
+
+        The module hides it to make room for the review table. It belongs to the application
+        rather than to this module, which is why it is put back in `exit()` instead of being
+        hidden once and for the rest of the session.
+        """
+        mainWindow = slicer.util.mainWindow()
+        if mainWindow is None:
+            return None
+        try:
+            return slicer.util.findChild(mainWindow, "DataProbeCollapsibleWidget")
+        except RuntimeError:
+            # findChild raises rather than returning None, and the widget is genuinely absent
+            # in a session started without the DataProbe module.
+            return None
 
     def connectVolumeControls(self):
         self.ui.load_volume_button.clicked.connect(self.load_files) # load volume
@@ -195,6 +232,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def initState(self):
         """Create the session-long nodes and the state the rest of the widget assumes."""
+        self.dataProbeWasVisible = True
         self.ensureMarkupsNodes()
         self.spheres = []
         self.lines = []
@@ -240,15 +278,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CollapsibleButton.setLayout(self.layout_2)
 
     def set_volume_color(self, color=None):
+        if not self.volNode:
+            return
+        # The volume can outlive its rendering nodes, and every other call site here guards
+        # for it; without this the colour picker raises instead of doing nothing.
+        displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
+        propertyNode = displayNode.GetVolumePropertyNode() if displayNode else None
+        if not propertyNode:
+            return
+
         color = rendering.to_rgb(color if color is not None else self.ui.volumeColor.color)
-        if self.volNode:
-            displayNode = slicer.modules.volumerendering.logic().GetFirstVolumeRenderingDisplayNode(self.volNode)
-            rangeCT = [0] * 2
-            displayNode.GetVolumePropertyNode().GetColor().GetRange(rangeCT)
-            colorTransferFunction = vtk.vtkColorTransferFunction()
-            colorTransferFunction.AddRGBPoint(rangeCT[0], color[0], color[1], color[2])
-            colorTransferFunction.AddRGBPoint(rangeCT[1], color[0], color[1], color[2])
-            displayNode.GetVolumePropertyNode().SetColor(colorTransferFunction)
+        rangeCT = [0] * 2
+        propertyNode.GetColor().GetRange(rangeCT)
+        colorTransferFunction = vtk.vtkColorTransferFunction()
+        colorTransferFunction.AddRGBPoint(rangeCT[0], color[0], color[1], color[2])
+        colorTransferFunction.AddRGBPoint(rangeCT[1], color[0], color[1], color[2])
+        propertyNode.SetColor(colorTransferFunction)
 
     def updateScalarOpacity(self):
         if self.volProp:
@@ -359,52 +404,59 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def load_files(self):
         # save before loading
         dir_path = qt.QFileDialog().getExistingDirectory()
-        if dir_path:
-            # load the first volume file
-            directory = Path(dir_path)
-            nii_volume_files = sorted(directory.glob("*.nii.gz"))
-            detection_files = sorted(directory.glob("*.json"))
-            if nii_volume_files:
-                self.reset()
+        if not dir_path:
+            return
 
-                # str: Qt cannot convert a Path, and the loader hands the name straight to it.
-                slicer.util.loadVolume(str(nii_volume_files[0]))
+        # Which files make up a case is decided in ReformatVizLib, where it can be tested;
+        # the review the module itself writes into this directory is not one of them.
+        directory = Path(dir_path)
+        volumePath, detectionPath = case.find_files(directory)
+        if volumePath is None:
+            # Otherwise choosing the wrong folder is silent, which looks like a broken module.
+            slicer.util.errorDisplay(case.describe_no_volume(directory))
+            return
 
-                self.volNode = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")[0]
-                # volume renderings view
-                volRenLogic = slicer.modules.volumerendering.logic()
-                displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(self.volNode)
-                if not displayNode:
-                    displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
-                volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
+        self.reset()
 
-                self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
+        # str: Qt cannot convert a Path, and the loader hands the name straight to it.
+        # The returned node is the one just loaded; looking it up by class afterwards would
+        # take whichever volume happens to be first in the scene.
+        self.volNode = slicer.util.loadVolume(str(volumePath))
+        # volume renderings view
+        volRenLogic = slicer.modules.volumerendering.logic()
+        displayNode = volRenLogic.GetFirstVolumeRenderingDisplayNode(self.volNode)
+        if not displayNode:
+            displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(self.volNode)
+        volRenLogic.UpdateDisplayNodeFromVolumeNode(displayNode, self.volNode)
 
-                # define the scalarOpacity function. Each of these three assignments emits
-                # valueChanged, so unblocked they rebuild the ramp against a range that is
-                # only half updated; the explicit call afterwards is the one that counts.
-                min_val, max_val = self.volNode.GetImageData().GetScalarRange()
-                wasBlocked = self.ui.volumeThreshold.blockSignals(True)
-                self.ui.volumeThreshold.maximum = max_val
-                self.ui.volumeThreshold.minimum = min_val
-                self.ui.volumeThreshold.value = (max_val+min_val)/3
-                self.ui.volumeThreshold.blockSignals(wasBlocked)
-                self.updateScalarOpacity()
+        self.volProp=displayNode.GetVolumePropertyNode().GetVolumeProperty()
 
-                self.ui.vol_visibility.checked = 1
+        # define the scalarOpacity function. Each of these three assignments emits
+        # valueChanged, so unblocked they rebuild the ramp against a range that is
+        # only half updated; the explicit call afterwards is the one that counts.
+        min_val, max_val = self.volNode.GetImageData().GetScalarRange()
+        wasBlocked = self.ui.volumeThreshold.blockSignals(True)
+        self.ui.volumeThreshold.maximum = max_val
+        self.ui.volumeThreshold.minimum = min_val
+        self.ui.volumeThreshold.value = (max_val+min_val)/3
+        self.ui.volumeThreshold.blockSignals(wasBlocked)
+        self.updateScalarOpacity()
 
-                # detections
-                if detection_files:
-                    if not self.load_detections(detection_files[0]):
-                        return
-                    if not self.startReview(directory, nii_volume_files[0],
-                                            detection_files[0]):
-                        self.reset()
-                        return
-                    self.create_spheres()
-                    for d in self.detections:
-                        self.add_detection_to_table(d)
-                    self.updateProgress()
+        self.ui.vol_visibility.checked = 1
+
+        # detections
+        if detectionPath is None:
+            # The volume is worth looking at on its own, so this warns rather than refusing —
+            # but with no detection file there is no review, and nothing is being recorded.
+            slicer.util.warningDisplay(case.describe_no_detections(directory))
+            return
+        if not self.load_detections(detectionPath):
+            return
+        if not self.startReview(directory, volumePath, detectionPath):
+            self.reset()
+            return
+        self.create_spheres()
+        self.fillReviewTable()
 
     def load_detections(self, file_path):
         # Parsing and validation live in ReformatVizLib; this method only turns a failure
@@ -521,6 +573,22 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         signedOff = self.review['review']['state'] == rev.SIGNED_OFF
         self.ui.signOffButton.text = 'Reopen' if signedOff else 'Sign off'
 
+    def fillReviewTable(self):
+        """Show the open review: one row per detection, locked if the case is finished.
+
+        The lock matters on the way in, not only after `onSignOff`: a case signed off in an
+        earlier session is loaded from disk already finished, and without this its controls
+        look editable and answer the first change with an error dialog.
+        """
+        for d in self.detections:
+            self.add_detection_to_table(d)
+        # Once the rows exist, not once per row.
+        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,
+                                                              COL_CONFIDENCE))
+        self.updateProgress()
+        if self.review:
+            self.setReviewEditable(self.review['review']['state'] != rev.SIGNED_OFF)
+
     # index is necessary because the table is not updated immediately after an insertion, so one cannot rely on rowCount
     def add_detection_to_table(self,d):
         idx=self.tableWidget.rowCount
@@ -569,7 +637,7 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Likert score
         lv = qt.QComboBox()
         for i in range(6):
-            lv.addItem('-' if i == 0 else i)
+            lv.addItem('-' if i == det.LIKERT_UNSCORED else str(i))
         lv.setCurrentIndex(entry.get('likert') or det.LIKERT_UNSCORED)
         self.tableWidget.setCellWidget(idx, COL_LIKERT, lv)
         lv.currentIndexChanged.connect(functools.partial(self.onLikertChanged, key=key))
@@ -577,8 +645,6 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Note
         self.tableWidget.setItem(idx, COL_NOTE, qt.QTableWidgetItem(entry.get('note', '')))
 
-        self.tableWidget.setCurrentItem(self.tableWidget.item(self.selected_detection,
-                                                             COL_CONFIDENCE))
         self.populatingTable = False
 
     def onVerdictChanged(self, index, key, row):
@@ -613,9 +679,14 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onNoteEdited(self, item):
         if self.populatingTable or item.column() != COL_NOTE:
             return
-        detection = self.detections[item.row()]
-        self.applyToReview(functools.partial(rev.set_note, self.review,
-                                             detection[det.SOURCE_KEY], item.text(), now()))
+        # No key when no case is open — an annotation placed against a bare volume has
+        # nowhere to be recorded. Read it the way the combo handlers do rather than
+        # subscripting, which raises before applyToReview can decline.
+        key = self.detections[item.row()].get(det.SOURCE_KEY)
+        if key is None:
+            return
+        self.applyToReview(functools.partial(rev.set_note, self.review, key, item.text(),
+                                             now()))
 
     def onSignOff(self):
         """Finish the case, or reopen a finished one.
@@ -1006,6 +1077,12 @@ class ReformatVizWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         whole of what a scene closed from the File menu needs, where the nodes have already
         been removed for us.
         """
+        # The view angle only reaches disk when the reviewer leaves a row, because the slider
+        # changes it far too often to write on every move — so the row they were on when they
+        # pressed Clean, closed the scene or opened the next case has yet to be written. A
+        # review that failed to load is None here, and is left exactly as it is on disk.
+        self.saveReview()
+
         self.spheres=[]
         self.lines=[]
         self.detections=[]
@@ -1060,9 +1137,10 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
 
     This covers only what needs Slicer: that the module loads, that a detection file becomes
     scene nodes, that selecting a row reformats the Red slice, that two placed points become a
-    detection, and that closing the scene resets the widget. The geometry and file format are
-    covered far more thoroughly by the Slicer-free suite in `tests/`, which is where new cases
-    belong unless they genuinely need MRML.
+    detection, that the review is recorded and resumed, and that closing the scene resets the
+    widget. The geometry and file format are covered far more thoroughly by the Slicer-free
+    suite in `tests/`, which is where new cases belong unless they genuinely need MRML —
+    which file in a directory is the detection file, for instance, is `tests/test_case.py`.
     """
 
     def setUp(self):
@@ -1078,6 +1156,11 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.test_a_case_cannot_be_signed_off_until_every_candidate_is_decided()
         self.test_a_case_is_resumed_exactly_as_it_was_left()
         self.test_a_case_whose_review_cannot_be_read_is_not_opened()
+        self.test_a_signed_off_case_reopens_locked()
+        self.test_the_last_view_angle_survives_clean()
+        self.test_a_note_on_a_candidate_with_no_case_open_is_ignored()
+        self.test_the_volume_colour_picker_survives_missing_rendering_nodes()
+        self.test_the_data_probe_is_hidden_while_the_module_is_open()
         self.test_closing_the_scene_resets_the_widget()
 
     def _widget(self):
@@ -1155,9 +1238,7 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertTrue(widget.startReview(directory, directory / 'angio.nii.gz',
                                            directory / 'detections.json'))
         widget.create_spheres()
-        for d in widget.detections:
-            widget.add_detection_to_table(d)
-        widget.updateProgress()
+        widget.fillReviewTable()
 
     def _reviewFile(self, directory):
         return directory / rev.file_name(reviewerName())
@@ -1278,6 +1359,114 @@ class ReformatVizTest(ScriptedLoadableModuleTest):
         self.assertEqual(self._reviewFile(directory).read_text(), '{ this is not a review')
 
         widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_a_signed_off_case_reopens_locked(self):
+        self.delayDisplay('A case signed off in an earlier session comes back locked')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        for row, verdict in enumerate(('Yes', 'No', 'Not assessable')):
+            self._setVerdict(widget, row, verdict)
+        widget.onSignOff()
+
+        # Away and back, the way the next session reaches it: off disk, already finished.
+        widget.reset()
+        self._openCase(widget, directory)
+        self.assertEqual(widget.review['review']['state'], rev.SIGNED_OFF)
+
+        for row in range(widget.tableWidget.rowCount):
+            # Locked on the way in, not only after onSignOff — otherwise the controls invite
+            # a change and answer it with an error dialog.
+            self.assertFalse(widget.tableWidget.cellWidget(row, COL_VERDICT).enabled)
+            self.assertFalse(widget.tableWidget.cellWidget(row, COL_LIKERT).enabled)
+            self.assertFalse(widget.tableWidget.cellWidget(row, COL_REASON).enabled)
+            self.assertFalse(widget.tableWidget.item(row, COL_NOTE).flags()
+                             & qt.Qt.ItemIsEditable)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_the_last_view_angle_survives_clean(self):
+        self.delayDisplay('The angle the reviewer left the last row at is written out')
+        widget = self._widget()
+        widget.reset()
+        directory = self._buildCase()
+        self._openCase(widget, directory)
+
+        key = widget.detections[1][det.SOURCE_KEY]
+        widget.onRowSelected(1)
+        widget.rotateAxisSlider(42)
+        # Nothing else here asks for a save — no verdict, no annotation — so the angle is
+        # still only in memory, which is exactly the case that used to lose it.
+        widget.reset()
+
+        onDisk = rev.load(self._reviewFile(directory))
+        self.assertEqual(rev.entry(onDisk, key)['viewAngle'], 42)
+        self.delayDisplay('Passed')
+
+    def test_a_note_on_a_candidate_with_no_case_open_is_ignored(self):
+        self.delayDisplay('A note typed against a bare volume is dropped, not a traceback')
+        widget = self._widget()
+        widget.reset()
+        widget.volNode = self._addTestVolume()
+
+        # No detection file, so no review and no key: exactly what load_files leaves behind
+        # for a directory holding a volume alone.
+        widget.prepareAnnotationNode()
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 0.0])
+        widget.tmpMark.AddControlPoint([10.0, 0.0, 6.0])
+        widget.validateAnnotation()
+        self.assertIsNone(widget.review)
+        self.assertNotIn(det.SOURCE_KEY, widget.detections[0])
+
+        # Used to raise KeyError from the partial's arguments, before applyToReview could
+        # decline the change. Called directly as well as through the signal, because PythonQt
+        # swallows an exception raised inside a slot — it prints the traceback and lets
+        # setText return normally, so the signal path alone would pass either way.
+        item = widget.tableWidget.item(0, COL_NOTE)
+        item.setText('looks like an infundibulum')
+        widget.onNoteEdited(item)
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_the_volume_colour_picker_survives_missing_rendering_nodes(self):
+        self.delayDisplay('Recolouring a volume with no rendering display node does nothing')
+        widget = self._widget()
+        widget.reset()
+        # Added straight to the scene, so it has no volume-rendering display node — the state
+        # Clean leaves behind, and the one every other call site here already guards for.
+        widget.volNode = self._addTestVolume()
+
+        widget.set_volume_color()
+
+        widget.reset()
+        self.delayDisplay('Passed')
+
+    def test_the_data_probe_is_hidden_while_the_module_is_open(self):
+        self.delayDisplay('The data probe is hidden on entry and put back on the way out')
+        widget = self._widget()
+        probe = widget.dataProbeWidget()
+        if probe is None:
+            self.delayDisplay('Skipped: this session has no data probe')
+            return
+
+        probe.setVisible(True)
+        widget.enter()
+        self.assertFalse(probe.visible)
+        widget.exit()
+        self.assertTrue(probe.visible)
+
+        # A reviewer who had already collapsed it does not find it reopened.
+        probe.setVisible(False)
+        widget.enter()
+        widget.exit()
+        self.assertFalse(probe.visible)
+
+        widget.enter()
         self.delayDisplay('Passed')
 
     def test_module_loads(self):

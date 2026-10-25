@@ -7,6 +7,7 @@ set(MODULE_NAME ReformatViz)
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   ReformatVizLib/__init__.py
+  ReformatVizLib/case.py
   ReformatVizLib/detections.py
   ReformatVizLib/geometry.py
   ReformatVizLib/jsonio.py

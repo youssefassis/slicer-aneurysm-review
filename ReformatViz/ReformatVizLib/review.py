@@ -385,6 +385,12 @@ def describe_source_mismatch(review):
             f"{review['review']['reviewer']}.")
 
 
+#: What every file :func:`file_name` produces starts with. The review is written into the
+#: case's own directory, beside the detection file it is about, so whatever picks that
+#: detection file has to be able to tell the two apart — see :func:`is_review_file`.
+FILE_PREFIX = "review_"
+
+
 def file_name(reviewer):
     """Return the review file name for ``reviewer``, inside the case's own directory.
 
@@ -393,4 +399,14 @@ def file_name(reviewer):
     and is cheaper than discovering the collision with real cases in the directory.
     """
     safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in reviewer)
-    return f"review_{safe or 'unknown'}.json"
+    return f"{FILE_PREFIX}{safe or 'unknown'}.json"
+
+
+def is_review_file(path):
+    """Whether ``path`` is a review file this module wrote.
+
+    Reviews land in the same directory as the detections they are about and share their
+    ``.json`` suffix, so a case whose detection file sorts after ``review_`` would otherwise
+    be opened against the module's own output.
+    """
+    return Path(path).name.startswith(FILE_PREFIX)
