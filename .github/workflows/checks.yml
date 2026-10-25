@@ -62,7 +62,7 @@ jobs:
 
       # GitHub does not render JUnit XML the way GitLab does, so keep the report as an
       # artifact — a failure can then be read without re-running the suite locally.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pytest-report
