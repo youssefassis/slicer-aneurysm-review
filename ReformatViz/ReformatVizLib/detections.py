@@ -31,6 +31,10 @@ POSITION_KEYS = (*REQUIRED_KEYS, "center")
 #: Keys holding a plain number, checked whenever they are present.
 NUMBER_KEYS = ("confidence", "radius", "viewAngle")
 
+#: Keys holding a yes/no flag, written as ``0``/``1`` or ``false``/``true``. ``added`` is
+#: checked because :func:`sort_for_review` orders on it.
+FLAG_KEYS = ("added",)
+
 #: Where :func:`load` records the key the producer filed a detection under. Derived, so any
 #: value a producer puts there is overwritten. The review file is keyed by it, which is what
 #: lets a review be joined back to the candidates it was made about.
@@ -75,7 +79,7 @@ def from_points(p1, p2):
         {
             "P1": np.asarray(p1).tolist(),
             "P2": np.asarray(p2).tolist(),
-            "aneurysm": 1,
+            "aneurysm": True,
             "added": 1,
         }
     )
@@ -84,6 +88,11 @@ def from_points(p1, p2):
 def _is_number(value):
     """True for a finite number. ``bool`` is excluded: ``True`` is an ``int`` subclass."""
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _is_flag(value):
+    """True for ``0``, ``1``, ``False`` or ``True`` — and not for ``1.0`` or ``"1"``."""
+    return isinstance(value, (bool, int)) and value in (0, 1)
 
 
 def _is_position(value):
@@ -111,6 +120,9 @@ def _validate_entry(key, d):
     for name in NUMBER_KEYS:
         if name in d and not _is_number(d[name]):
             raise DetectionFormatError(f"detection '{key}' has a non-numeric {name}")
+    for name in FLAG_KEYS:
+        if name in d and not _is_flag(d[name]):
+            raise DetectionFormatError(f"detection '{key}' has an '{name}' that is not 0, 1, true or false")
 
 
 def validate(data):

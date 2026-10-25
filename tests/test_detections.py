@@ -66,7 +66,8 @@ class TestFromPoints:
         # instead of promoting it above every real candidate on its confidence of 1.
         d = det.from_points([0, 0, 0], [1, 0, 0])
         assert d["added"] == 1
-        assert d["aneurysm"] == 1
+        # The same type add_missing_info defaults it to, so the field never holds both.
+        assert d["aneurysm"] is True
         assert d["confidence"] == 1
         assert det.sort_for_review([d, {"confidence": 0.1, "P1": [0] * 3, "P2": [1, 0, 0]}])[-1] is d
 
@@ -136,6 +137,19 @@ class TestValidate:
         data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0], name: value}}
         with pytest.raises(det.DetectionFormatError, match=f"'a' has a non-numeric {name}"):
             det.validate(data)
+
+    @pytest.mark.parametrize("value", ["yes", "1", None, 2, -1, 1.0, [1]])
+    def test_rejects_an_added_flag_that_is_not_a_flag(self, value):
+        # sort_for_review orders on it, so a string here used to escape as a TypeError — which
+        # the GUI does not catch — instead of the dialog naming the entry.
+        data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0]}, "b": {"P1": [0, 0, 0], "P2": [2, 0, 0], "added": value}}
+        with pytest.raises(det.DetectionFormatError, match="'b' has an 'added'"):
+            det.validate(data)
+
+    @pytest.mark.parametrize("value", [0, 1, True, False])
+    def test_accepts_an_added_flag_however_it_is_written(self, value):
+        data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0], "added": value}}
+        assert len(det.validate(data)) == 1
 
     def test_rejects_a_malformed_center(self):
         data = {"a": {"P1": [0, 0, 0], "P2": [1, 0, 0], "center": [1, 2]}}
