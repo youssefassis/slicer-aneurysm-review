@@ -11,6 +11,10 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Changed
 
+- **Faster with many candidates.** With 200 candidates, opening a case takes 2.0 s instead of
+  10.5 s and **Clean** 3.0 s instead of 13.4 s, and dragging a finding's points while placing
+  them no longer renders every view on each mouse move. Moving between rows no longer rewrites
+  the review file unless the view angle changed.
 - **The module is presented for any detector's candidates**, not only aneurysms: it is now
   **Candidate Review** under the *Annotation* category (was *Reformat Aneurysm* under
   *Aneurysms*), the verdict column is **Verdict**, and the two points are the **base** and the

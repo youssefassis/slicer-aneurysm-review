@@ -118,8 +118,24 @@ column) — the same accumulation trap as the row-selection signal.
 `self.selected_detection` is the table row index, `-1` for none. Every `set_*_visibility`
 method asks `rendering.is_visible(i, selected_detection, checked)`, which applies the one
 rule: *show if `i == selected_detection` or `selected_detection < 0`* — no selection shows
-everything. `onRowSelected` → `updateObjectsDisplay()` + `prepare_slices()` is the only path
-that reacts to selection.
+everything. `onRowSelected` → `updateVisibility()` + `prepare_slices()` is the only path
+that reacts to selection: colours and opacity do not depend on it, so a row change leaves them
+alone. The table's current cell drives it (`onCurrentCellChanged`), so the arrow keys move the
+views as a click does.
+
+### Cost
+
+Measured in Slicer 5.12.4 with 200 candidates:
+
+- **Opening a case and Clean are batched** (`BatchProcessState`, and `StartModify` on the
+  three markups nodes). Unbatched, every node and control point was processed on its own:
+  10.5 s to open and 13.4 s to clean, against 2.0 s and 3.0 s. What remains is Slicer's own cost
+  of adding and removing two model nodes per candidate.
+- **Nothing forces a render.** The preview sphere's model observes its source, so `Update()`
+  already asks the views to redraw at their own rate; forcing it made each mouse move of a
+  drag render every view synchronously (57 ms of handler time, now 4.5 ms).
+- **A row click writes the review only for a new view angle** (`saveViewAngle`); a verdict,
+  score, note or sign-off is written at once by `applyToReview`.
 
 ### Scene ownership
 
