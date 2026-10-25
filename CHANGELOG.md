@@ -19,6 +19,13 @@ change for whatever produces those files. See `docs/detection-format.md`.
 
 ### Fixed
 
+- **Opening a case wrote a note event per candidate into the review**, and moved it from
+  *received* to *in review* with nothing decided; signing off then answered with one error
+  dialog per row. Locking and unlocking the note cells was being taken for note edits.
+- Moving through the table with the arrow keys highlighted another row while the views stayed
+  on the previous candidate. The views now follow the current row however it is reached.
+- A verdict, reason or Likert score the review refused stayed shown in its combo, so the table
+  and the file disagreed until the case was reopened. The combo now returns to what is recorded.
 - A detection file whose legacy `added` field held anything but `0`, `1`, `false` or `true`
   — `"yes"`, say — raised `TypeError` in the Python console while the table was being ordered,
   instead of the dialog naming the entry. It is now rejected with that dialog, like any other
