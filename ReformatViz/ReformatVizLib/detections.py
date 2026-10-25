@@ -31,10 +31,6 @@ POSITION_KEYS = (*REQUIRED_KEYS, "center")
 #: Keys holding a plain number, checked whenever they are present.
 NUMBER_KEYS = ("confidence", "radius", "viewAngle")
 
-#: The Likert combo's first row, meaning "not scored". The review records ``None`` for it;
-#: there is no score of zero.
-LIKERT_UNSCORED = 0
-
 #: Where :func:`load` records the key the producer filed a detection under. Derived, so any
 #: value a producer puts there is overwritten. The review file is keyed by it, which is what
 #: lets a review be joined back to the candidates it was made about.

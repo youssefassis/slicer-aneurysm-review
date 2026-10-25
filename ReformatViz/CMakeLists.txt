@@ -11,8 +11,9 @@ set(MODULE_PYTHON_SCRIPTS
   ReformatVizLib/detections.py
   ReformatVizLib/geometry.py
   ReformatVizLib/jsonio.py
-  ReformatVizLib/review.py
   ReformatVizLib/rendering.py
+  ReformatVizLib/review.py
+  ReformatVizLib/table.py
   )
 
 set(MODULE_PYTHON_RESOURCES
